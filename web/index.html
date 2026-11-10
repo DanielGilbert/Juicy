@@ -1,0 +1,107 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Juicy</title>
+<style>
+    :root { --body: #3b3b3d; --well: #1b1b1c; --cap: #232325; --print: #c9c9cc; --dim: #8a8a93; --led: #ffffff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px; background: #e9e9ea; color: #333; font: 13px/1.4 system-ui, sans-serif; user-select: none; }
+    #status, #help { width: 980px; max-width: 100%; margin: 0 auto 14px; color: #555; }
+    #help { margin-top: 16px; }
+    kbd { background: #fff; border: 1px solid #bbb; border-radius: 3px; padding: 0 4px; font: inherit; }
+
+    #device { width: 980px; margin: 0 auto; padding: 34px 32px 30px; background: var(--body); border-radius: 44px; color: var(--print);
+              font: 11px/1 ui-monospace, Consolas, monospace; letter-spacing: 0.5px; box-shadow: 0 10px 30px #0004; }
+    #top { display: flex; justify-content: space-between; align-items: flex-start; height: 300px; }
+
+    .knobs { display: grid; gap: 30px 26px; text-align: center; }
+    .knob-cell { width: 84px; }
+    .knob-cell span { display: block; margin-bottom: 10px; }
+    .knob { width: 42px; height: 42px; margin: 0 auto; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #2c2c2e, #0e0e0f); border: 2px solid #111;
+            position: relative; cursor: ns-resize; touch-action: none; }
+    .knob::after { content: ""; position: absolute; left: 50%; top: 3px; width: 2px; height: 10px; margin-left: -1px; background: var(--print); border-radius: 1px; }
+
+    #left { width: 200px; }
+    #left .knobs { grid-template-columns: repeat(2, 84px); }
+    #octave { display: flex; gap: 10px; width: 152px; margin: 28px 0 0 22px; padding: 7px; background: var(--well); border-radius: 12px; }
+    #octave button { flex: 1; height: 34px; }
+
+    #bezel { width: 268px; height: 268px; padding: 14px; background: #0b0b0c; border-radius: 30px; }
+    canvas { display: block; width: 240px; height: 240px; image-rendering: pixelated; background: #000; border-radius: 4px; }
+
+    #right { width: 420px; }
+    #right .knobs { grid-template-columns: repeat(4, 84px); justify-content: space-between; }
+    #grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 34px; padding: 12px; background: var(--well); border-radius: 18px; }
+    #grid button { height: 50px; }
+
+    button.cap { background: var(--cap); color: var(--print); border: 1px solid #000; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
+    button.cap.held { background: #101011; }
+    button.cap.glow { box-shadow: inset 0 0 0 2px #77777a; }
+    button.cap.lit { background: #d9d9dc; color: #000; box-shadow: 0 0 10px #fff8; }
+
+    #bed { position: relative; height: 216px; margin-top: 26px; padding: 14px 16px; background: var(--well); border-radius: 30px; }
+    #keys { position: relative; height: 100%; }
+    .key { position: absolute; width: 5.1%; height: 88px; margin-left: -2.55%; background: var(--cap); border: 1px solid #000; border-radius: 22px; cursor: pointer; text-align: center; }
+    .key.black { top: 0; }
+    .key.white { top: 100px; }
+    .key::before { content: ""; position: absolute; left: 50%; top: 22px; width: 5px; height: 34px; margin-left: -2.5px; border-radius: 3px; background: #4a4a4d; }
+    .key.black::before { top: 14px; height: 24px; }
+    .key.glow::before { background: #9a9a9e; }
+    .key.lit::before { background: var(--led); box-shadow: 0 0 9px 2px #fffa; }
+    .key.held { background: #101011; }
+    .key .print { position: absolute; left: 0; right: 0; top: 46px; font-size: 9px; }
+    .key .shortcut { position: absolute; left: 0; right: 0; bottom: 7px; font-size: 10px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="status">Loading…</div>
+<div id="device">
+    <div id="top">
+        <div id="left">
+            <div class="knobs">
+                <div class="knob-cell"><span>MASTER</span><div class="knob" data-master></div></div>
+                <div class="knob-cell"><span>SELECT</span><div class="knob" data-encoder="0"></div></div>
+                <div class="knob-cell"><span>PRESETS</span><div class="knob" data-encoder="6"></div></div>
+                <div class="knob-cell"><span>ALGORITHM</span><div class="knob" data-encoder="1"></div></div>
+            </div>
+            <div id="octave">
+                <button class="cap" data-button="0">OCT-</button>
+                <button class="cap" data-button="1">OCT+</button>
+            </div>
+        </div>
+        <div id="bezel"><canvas id="screen" width="240" height="240"></canvas></div>
+        <div id="right">
+            <div class="knobs">
+                <div class="knob-cell"><span>KNOB1</span><div class="knob" data-encoder="2"></div></div>
+                <div class="knob-cell"><span>KNOB2</span><div class="knob" data-encoder="3"></div></div>
+                <div class="knob-cell"><span>KNOB3</span><div class="knob" data-encoder="4"></div></div>
+                <div class="knob-cell"><span>KNOB4</span><div class="knob" data-encoder="5"></div></div>
+            </div>
+            <div id="grid">
+                <button class="cap" data-button="2">FX</button>
+                <button class="cap" data-button="3">SEL</button>
+                <button class="cap" data-button="4">ENV</button>
+                <button class="cap" data-button="5">LFO</button>
+                <button class="cap" data-button="6">EDIT</button>
+                <button class="cap" data-button="7">GLO</button>
+                <button class="cap" data-button="8">HOME</button>
+                <button class="cap" data-button="9">SAVE</button>
+                <button class="cap" data-button="10">ARP</button>
+                <button class="cap" data-button="11">SEQ</button>
+                <button class="cap" data-button="12">PLAY<br>STOP</button>
+                <button class="cap" data-button="13">REC</button>
+            </div>
+        </div>
+    </div>
+    <div id="bed"><div id="keys"></div></div>
+</div>
+<div id="help">
+    Keys: the letters shown on them (two rows, piano style). Buttons: click, or <kbd>Shift</kbd>+click to hold one down.
+    Knobs: mouse wheel, or drag up and down. <kbd>Space</kbd> PLAY, <kbd>←</kbd> <kbd>→</kbd> OCT.
+</div>
+<script src="main.js"></script>
+</body>
+</html>

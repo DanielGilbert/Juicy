@@ -1,0 +1,19 @@
+# The drum track: play the first beat, change it while it runs, stop (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/drums.txt
+100 btn 12
+# one bar at 138 BPM is 1739 ms: the screen in the middle of bar 1
+900 shot
+# OP2 selects the hat; steps 1 and 9 added to it (lower keys 0 and 14)
+2000 keys 0x8
+2050 keys 0
+2100 keys 0x1
+2150 keys 0
+2200 keys 0x4000
+2250 keys 0
+# faster: KNOB1 up by 12
+3600 enc 2 12
+4000 shot
+5500 btn 12
+5600 shot
+# stopped and silent for 2 s: the pattern is saved
+8200 end
