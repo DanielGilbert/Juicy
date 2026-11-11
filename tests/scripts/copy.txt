@@ -1,25 +1,31 @@
-# A copy of a pattern: EDIT on GLO's page puts pattern A into the first empty pattern, F, and shows it. A change
+# A copy of a pattern: REC on GLO's page puts pattern A into the first empty pattern, F, and shows it. A change
 # to F leaves A as it was (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/copy.txt
-# SEQ: the chain off. GLO, EDIT: F is on the screen, four bars as A has
+# SEQ: the chain off. GLO, REC: F is on the screen, four bars as A has
+# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
+10 btn 6
 20 btn 11
 300 btn 7
-400 btn 6
+400 btn 13
 800 shot
 # OP1: the drums of F are those of A. The kick's step 2 added (lower key 2)
+890 btn 3
 900 keys 0x2
 950 keys 0
+960 btn 3
 1000 keys 0x4
 1050 keys 0
 1400 shot
 # GLO, KNOB3 five back: A, then OP1: its kick has no step 2
 1500 btn 7
 1600 enc 4 -5
+1690 btn 3
 1700 keys 0x2
 1750 keys 0
+1760 btn 3
 2100 shot
-# GLO, EDIT again: the copy goes to G now
+# GLO, REC again: the copy goes to G now
 2200 btn 7
-2300 btn 6
+2300 btn 13
 2700 shot
 6000 end

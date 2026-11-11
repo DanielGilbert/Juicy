@@ -3,6 +3,8 @@
 #   tests/run_host.sh tests/scripts/drums.txt
 # One bar at 138 BPM is 1739 ms: bar 1 plays 100..1839, bar 2 1839..3578, bar 1 again from 3578.
 # SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
+10 btn 6
 20 btn 11
 40 btn 7
 60 enc 3 -3

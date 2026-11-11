@@ -2,14 +2,18 @@
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/sequence.txt
 # SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
+10 btn 6
 20 btn 11
 40 btn 7
 60 enc 3 -3
 80 btn 7
 100 btn 12
 # OP3: the sequence track
+290 btn 3
 300 keys 0x20
 350 keys 0
+360 btn 3
 900 shot
 # KNOB1 twelve notes up (C5): the roll follows. Put on step 1 (lower key 0)
 1000 enc 2 12

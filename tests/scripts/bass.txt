@@ -2,14 +2,18 @@
 #   tests/run_host.sh tests/scripts/bass.txt
 # The first song has the bass on steps 3, 7, 11 and 15 (A1). One step at 138 BPM is 109 ms.
 # SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
+10 btn 6
 20 btn 11
 40 btn 7
 60 enc 3 -3
 80 btn 7
 100 btn 12
 # OP2: the bass track
+290 btn 3
 300 keys 0x8
 350 keys 0
+360 btn 3
 900 shot
 # KNOB1 seven notes up (E2), put on step 1 (lower key 0)
 1000 enc 2 7
@@ -25,8 +29,10 @@
 3800 enc 2 2
 4100 shot
 # back to the drums (OP1), their third drum
+4290 btn 3
 4300 keys 0x2
 4350 keys 0
+4360 btn 3
 4400 enc 2 2
 4700 shot
 5500 btn 12

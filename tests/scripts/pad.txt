@@ -3,14 +3,18 @@
 #   tests/run_host.sh tests/scripts/pad.txt
 # One bar at 138 BPM is 1739 ms: the bars start at 100, 1839 and 3578, step 5 of a bar 435 ms later.
 # SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
+10 btn 6
 20 btn 11
 40 btn 7
 60 enc 3 -3
 80 btn 7
 100 btn 12
 # OP4: the pad track
+290 btn 3
 300 keys 0x100
 350 keys 0
+360 btn 3
 900 shot
 # KNOB1 one note up (A#3), KNOB3: major. Each is heard for a moment, then the pattern's chord is back
 1000 enc 2 1
