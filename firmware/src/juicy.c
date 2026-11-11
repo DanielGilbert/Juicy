@@ -2,15 +2,17 @@
 /* Juicy: a groovebox for the M-VAVE FM-1, built on Dinghy (platform.c and everything below it: updates, the USB
  * rescue, the keys, knobs, LEDs, the screen, flash storage). Five tracks, DRUMS, BASS, SEQUENCE, PAD and LEAD, in
  * eight patterns (A..H) of up to four bars of 16 steps, a chain that plays patterns one after the other, an echo
- * three steps long that all but the drums can send into, and a limiter over all of it.
+ * three steps long that all but the drums can send into, a reverb for SEQUENCE, PAD, LEAD and the echo, and a
+ * limiter over all of it.
  *
  *   OP1 .. OP5   (the first five upper keys) the track on the screen: DRUMS, BASS, SEQUENCE, PAD, LEAD
  *   lower keys   the 16 steps of the bar on the screen: a press puts what the knobs show there (a hit of that
  *                drum, that note, that chord), or takes it away again
  *   KNOB1..4     what the four places along the bottom of the screen say, and nothing else
  *   OCT- OCT+    the bar on the screen: the one before, the next one
- *   GLO          the page for the whole song: TEMPO, the BARS of the pattern, the PATTERN on the screen, and the
- *                chain, where the lower keys are its 16 places (GLO again: back to the track)
+ *   GLO          the page for the whole song: TEMPO, the BARS of the pattern, the PATTERN on the screen, REVERB,
+ *                and the chain, where the lower keys are its 16 places (GLO again: back to the track)
+ *   EDIT         on GLO's page: a copy of the pattern on the screen, in the first empty pattern
  *   SEQ          what plays: the chain (lit), or the pattern on the screen, round and round
  *   PLAY         start and stop
  *
@@ -25,6 +27,7 @@
 #include "synth.c"
 #include "pad.c"
 #include "echo.c"
+#include "reverb.c"
 #include "limiter.c"
 
 /* ---- the melodic tracks: BASS, SEQUENCE and LEAD are each one synth voice (synth.c) with a shape of its own,
@@ -64,6 +67,7 @@ static void melodic_note_off(uint32_t melodic)
 #define TEMPO_MIN 60u
 #define TEMPO_MAX 200u
 #define ECHO_SEND_MAX 100u
+#define REVERB_MAX 100u
 #define ECHO_STEPS 3u                           /* the echo comes back a dotted eighth later */
 
 typedef struct {
@@ -78,6 +82,7 @@ static volatile struct {
     uint8_t cutoff[MELODIC_COUNT], decay[MELODIC_COUNT];      /* 0..SYNTH_PARAMETER_MAX (the pad has no decay) */
     uint8_t echo[MELODIC_COUNT];                /* how much of the track goes into the echo, 0..ECHO_SEND_MAX */
     uint8_t tempo;
+    uint8_t reverb;                             /* how much of SEQUENCE, PAD, LEAD and the echo goes into the reverb, 0..REVERB_MAX */
 } song;
 
 /* The first song, in A minor: four bars over the chords Am F C G, in five patterns that differ in which tracks
@@ -142,6 +147,20 @@ static void first_song(void)
     song.decay[MELODIC_LEAD] = 55;
     song.echo[MELODIC_LEAD] = 50;
     song.tempo = 138;
+    song.reverb = 35;
+}
+
+static int pattern_empty(const volatile pattern_t *pattern)
+{
+    uint32_t bar, drum, melodic, step;
+    for (bar = 0; bar < BAR_COUNT; bar++) {
+        for (drum = 0; drum < DRUM_COUNT; drum++)
+            if (pattern->drum_hits[drum][bar]) return 0;
+        for (melodic = 0; melodic < MELODIC_COUNT; melodic++)
+            for (step = 0; step < STEPS_PER_BAR; step++)
+                if (pattern->notes[melodic][bar][step]) return 0;
+    }
+    return 1;
 }
 
 static int song_valid(void)
@@ -154,7 +173,7 @@ static int song_valid(void)
         if (song.patterns[index].bar_total < 1u || song.patterns[index].bar_total > BAR_COUNT) return 0;
     for (index = 0; index < CHAIN_SLOTS; index++)
         if (song.chain[index] > PATTERN_COUNT) return 0;
-    return song.tempo >= TEMPO_MIN && song.tempo <= TEMPO_MAX;
+    return song.tempo >= TEMPO_MIN && song.tempo <= TEMPO_MAX && song.reverb <= REVERB_MAX;
 }
 
 /* ---- the sequencer (runs in the audio ISR, so a step starts on its exact frame) */
@@ -175,18 +194,23 @@ static volatile uint32_t playing_slot;          /* its place in the chain, CHAIN
 static void render(int32_t *out, uint32_t frame_count)   /* at most BLOCK_FRAMES_MAX */
 {
     static int32_t echo_send[BLOCK_FRAMES_MAX];
-    uint32_t melodic;
+    static int32_t room[2u * BLOCK_FRAMES_MAX];   /* what the reverb hears (L R L R ...): all but the drums and the bass */
+    uint32_t melodic, i;
     memset(echo_send, 0, frame_count * sizeof echo_send[0]);
+    memset(room, 0, 2u * frame_count * sizeof room[0]);
     drums_render(out, frame_count);
     for (melodic = 0; melodic < MELODIC_COUNT; melodic++) {
         int32_t send_gain = (int32_t)(song.echo[melodic] * 5u);   /* of 512: echo / 100, near enough */
         if (melodic == MELODIC_PAD)
-            pad_render(out, echo_send, frame_count, song.cutoff[melodic], send_gain);
+            pad_render(room, echo_send, frame_count, song.cutoff[melodic], send_gain);
         else
-            synth_render(&melodic_voices[melodic], &MELODIC[melodic].shape, out, echo_send, frame_count,
-                         song.cutoff[melodic], song.decay[melodic], send_gain);
+            synth_render(&melodic_voices[melodic], &MELODIC[melodic].shape, melodic == MELODIC_BASS ? out : room, echo_send,
+                         frame_count, song.cutoff[melodic], song.decay[melodic], send_gain);
     }
-    echo_render(out, echo_send, frame_count, ECHO_STEPS * frames_per_step_q8 >> 8);
+    echo_render(room, echo_send, frame_count, ECHO_STEPS * frames_per_step_q8 >> 8);
+    reverb_render(out, room, frame_count, song.reverb);
+    for (i = 0; i < 2u * frame_count; i++)
+        out[i] += room[i];
     limiter_render(out, frame_count);
 }
 
@@ -298,7 +322,7 @@ static void app_audio(int32_t *out, uint32_t frame_count)
 #define ROLL_MARGIN_ROWS 2u
 #define ROLL_HEIGHT (ROLL_ROWS * ROLL_ROW_HEIGHT)
 #define KNOB_COUNT 4u
-#define CHAIN_HEIGHT 80u
+#define CHAIN_HEIGHT 100u
 #define NO_STEP STEPS_PER_BAR
 #define NO_BAR BAR_COUNT
 
@@ -373,6 +397,7 @@ static void draw_chain(uint32_t shown_pattern, uint32_t marked_slot, int on)
         if (slot == marked_slot) cv_rect(step_x(slot), 42, 12, 3, C_WHITE);
     }
     cv_text(4, 60, &FONT_S, "SEQ: CHAIN ON / OFF", C_LABEL);
+    cv_text(4, 80, &FONT_S, "EDIT: COPY PATTERN", C_LABEL);
     cv_blit(0, BODY_TOP);
 }
 
@@ -456,7 +481,7 @@ static int sound_quiet(void)
     uint32_t melodic;
     for (melodic = 0; melodic < MELODIC_COUNT; melodic++)
         if (!synth_quiet(&melodic_voices[melodic])) return 0;
-    return drums_quiet() && pad_quiet() && echo_quiet();
+    return drums_quiet() && pad_quiet() && echo_quiet() && reverb_quiet();
 }
 
 static void app_main(void)
@@ -499,6 +524,16 @@ static void app_main(void)
             }
         page = global_shown ? PAGE_GLOBAL : shown_track;
         if (page == PAGE_GLOBAL) shown_pattern = turned_value(shown_pattern, detents[2], 0, PATTERN_COUNT - 1u);
+        if (page == PAGE_GLOBAL && buttons_pressed & (1u << BTN_EDIT) && !pattern_empty(&song.patterns[shown_pattern])) {
+            uint32_t index;                     /* a copy goes to the first empty pattern, which is then the one on the screen */
+            for (index = 0; index < PATTERN_COUNT; index++)
+                if (pattern_empty(&song.patterns[index])) {
+                    memcpy((void *)&song.patterns[index], (const void *)&song.patterns[shown_pattern], sizeof(pattern_t));
+                    shown_pattern = index;
+                    song_changed = 1;
+                    break;
+                }
+        }
         loop_pattern = shown_pattern;
         pattern = &song.patterns[shown_pattern];
         if (page == PAGE_GLOBAL) song_changed |= turn_setting(&pattern->bar_total, detents[1], 1, BAR_COUNT);
@@ -509,6 +544,7 @@ static void app_main(void)
         if (page == PAGE_GLOBAL) {
             song_changed |= turn_setting(&song.tempo, detents[0], TEMPO_MIN, TEMPO_MAX);
             frames_per_step_q8 = FRAMES_PER_STEP_Q8(song.tempo);
+            song_changed |= turn_setting(&song.reverb, detents[3], 0, REVERB_MAX);
             for (step = 0; step < CHAIN_SLOTS; step++) {
                 if (keys_pressed >> STEP_KEYS[step] & 1u) {   /* the pattern on the screen goes there; it is taken away if it was there */
                     song.chain[step] = (uint8_t)(song.chain[step] == shown_pattern + 1u ? 0u : shown_pattern + 1u);
@@ -631,12 +667,12 @@ static void app_main(void)
         for (knob = 0; knob < KNOB_COUNT; knob++) {
             static const char *const MELODIC_LABELS[KNOB_COUNT] = {"NOTE", "CUTOFF", "DECAY", "ECHO"};
             static const char *const PAD_LABELS[KNOB_COUNT] = {"NOTE", "CUTOFF", "CHORD", "ECHO"};
-            static const char *const GLOBAL_LABELS[KNOB_COUNT] = {"TEMPO", "BARS", "PATTERN", ""};
+            static const char *const GLOBAL_LABELS[KNOB_COUNT] = {"TEMPO", "BARS", "PATTERN", "REVERB"};
             static const char *const DRUM_LABELS[KNOB_COUNT] = {"DRUM", "", "", ""};
             const int pad_shown = page == MELODIC_FIRST_PAGE + MELODIC_PAD;
             const uint32_t melodic_values[KNOB_COUNT] = {selected_notes[melodic], song.cutoff[melodic],
                                                          pad_shown ? selected_major : song.decay[melodic], song.echo[melodic]};
-            const uint32_t global_values[KNOB_COUNT] = {song.tempo, pattern->bar_total, shown_pattern};
+            const uint32_t global_values[KNOB_COUNT] = {song.tempo, pattern->bar_total, shown_pattern, song.reverb};
             const char *label = page == PAGE_GLOBAL ? GLOBAL_LABELS[knob] : page == PAGE_DRUMS ? DRUM_LABELS[knob]
                               : pad_shown ? PAD_LABELS[knob] : MELODIC_LABELS[knob];
             uint32_t value = page == PAGE_GLOBAL ? global_values[knob] : page == PAGE_DRUMS ? (knob ? 0u : selected_drum) : melodic_values[knob];
