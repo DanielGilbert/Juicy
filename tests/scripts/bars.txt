@@ -1,21 +1,37 @@
-# A pattern's length where the work is: PRESETS picks the pattern on every page, and with EDIT on OCT+ past the
-# last bar of a track's page gives the pattern one more (tests/host.c says what a line can do).
+# Each track has its own bars in a pattern: PRESETS picks the pattern on every page, with EDIT on OCT+ past a
+# track's last bar gives it one more, OCT- held takes the bar on the screen out of it; a shorter track goes round
+# (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/bars.txt
-# PRESETS five on: pattern F, empty, one bar. HOME's page says "F BARS"
+# One bar at 138 BPM is 1739 ms.
+# PRESETS five on: pattern F, empty, one bar on every track. EDIT, SEQ: the chain off, F alone
 300 enc 6 5
+400 btn 6
+450 btn 11
 600 shot
-# HOME: the drums. OCT+ without EDIT: still one bar
+# HOME: the drums. A kick on step 1 (lower key 0) of their only bar
 700 btn 8
-800 btn 1
-1100 shot
-# EDIT, OCT+ twice: three bars, the third on the screen. A kick on its step 1
-1200 btn 6
-1300 btn 1
-1400 btn 1
-1500 keys 0x1
-1550 keys 0
-1800 shot
-# PRESETS five back: pattern A, its four bars; the screen shows its third
-2000 enc 6 -5
-2300 shot
-2500 end
+800 keys 0x1
+850 keys 0
+# SEL (EDIT goes off), OP2, EDIT (SEL goes off): the bass. OCT+ twice: three bars, the third on the screen. A1 (the selected note) on its step 1
+900 btn 3
+920 keys 0x8
+940 keys 0
+960 btn 6
+1100 btn 1
+1200 btn 1
+1300 keys 0x1
+1350 keys 0
+1600 shot
+# OCT- tapped: bar 2. OCT- held: the bass has two bars, the note's bar is its second and on the screen
+1700 btn 0
+1800 btndown 0
+2700 btnup 0
+2900 shot
+# HOME: the pattern lasts two bars. PLAY at 4000: the kick at 4000, 5739, 7478 (its bar goes round), the bass
+# at 5739 only (its second bar), then again at 9217
+3100 btn 8
+3300 shot
+4000 btn 12
+6500 shot
+9600 btn 12
+12000 end

@@ -4,7 +4,7 @@
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
 # SEQ: the chain off. HOME, REC: F is on the screen, four bars as A has
-# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
+# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11
 300 btn 8
@@ -14,7 +14,7 @@
 890 btn 3
 900 keys 0x2
 950 keys 0
-960 btn 3
+960 btn 6
 1000 keys 0x4
 1050 keys 0
 1400 shot
@@ -24,7 +24,7 @@
 1690 btn 3
 1700 keys 0x2
 1750 keys 0
-1760 btn 3
+1760 btn 6
 2100 shot
 # HOME, REC again: the copy goes to G now
 2200 btn 8

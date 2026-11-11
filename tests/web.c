@@ -49,6 +49,7 @@ static void web_led(uint32_t *layer, uint32_t id, int on)
 }
 static void fm1_led_key(uint32_t id, int on) { web_led(web_io.leds, id, on); }
 static void fm1_led_key_glow(uint32_t id, int on) { web_led(web_io.glow, id, on); }
+static void fm1_led_key_glow_bright(uint32_t id, int on) { if (on) web_led(web_io.glow, id, 1); }   /* (after fm1_led_key_glow: the page has one glow) */
 
 /* the screen: 240 x 240 RGB565 (gfx.c sends the bytes swapped, as the ST7789 gets them) */
 static uint16_t fb[240 * 240];

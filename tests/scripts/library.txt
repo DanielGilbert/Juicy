@@ -1,0 +1,31 @@
+# The pattern library behind SAVE's second press: pattern A stored in place 1, fetched into the empty pattern F,
+# a place picked with a lower key; storing waits for STOP, fetching does not (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/library.txt
+# SAVE twice: the library, place 1 selected, nothing there yet
+300 btn 9
+350 btn 9
+600 shot
+# REC: pattern A (on the screen) is stored there (slot 0)
+700 btn 13
+1100 shot
+# PRESETS five on: pattern F, empty. SEQ: it is pattern F now, without asking
+1200 enc 6 5
+1300 btn 11
+1600 shot
+# SEQ again: F holds something now, so it asks; PRESETS away and back: the question is gone
+1700 btn 11
+1900 shot
+2000 enc 6 1
+2050 enc 6 -1
+# lower key 4 (place 3), PLAY, REC: not while it plays. SEQ on place 3: nothing there, nothing happens
+2200 keys 0x10
+2250 keys 0
+2300 btn 12
+2400 btn 13
+2600 shot
+2700 btn 11
+# HOME: the song's page, F has A's bars
+2900 btn 8
+3100 shot
+3200 btn 12
+6000 end

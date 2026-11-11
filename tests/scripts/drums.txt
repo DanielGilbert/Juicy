@@ -1,22 +1,16 @@
-# The drum track: play the first song, add a second bar and fill it while it runs, take it away again, stop
+# The drum track: play the first song, give the drums a second bar and fill it while it runs, take it away again
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/drums.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# One bar at 138 BPM is 1739 ms: bar 1 plays 100..1839, bar 2 1839..3578, bar 1 again from 3578.
-# SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
-# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
+# One bar at 138 BPM is 1739 ms. With two bars of drums: bar 1 plays 100..1839, bar 2 1839..3578, bar 1 again from 3578.
+# SEQ: the chain off, pattern A alone (its drums one bar, the other tracks four: 6957 ms at 138 BPM)
+# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11
-40 btn 8
-60 enc 3 -3
-80 btn 8
 100 btn 12
 900 shot
-# HOME, KNOB2: two bars, HOME: back. OCT+: bar 2 on the screen. The kick's steps 1, 2 and 3 flipped (lower keys 0, 2 and 4)
-950 btn 8
-1000 enc 3 1
-1050 btn 8
+# OCT+ (EDIT on, the drums' last bar): a second bar, on the screen. The kick's steps 1, 2 and 3 set (lower keys 0, 2 and 4)
 1100 btn 1
 1200 keys 0x1
 1250 keys 0
@@ -28,11 +22,10 @@
 2500 shot
 # bar 1 sounds, bar 2 is on the screen: no step is marked, the mark is under the first bar's box
 4000 shot
-# HOME, KNOB2 back to one bar: the screen follows to bar 1
-4150 btn 8
-4200 enc 3 -1
-4250 btn 8
-4400 shot
+# OCT- held: bar 2 taken out of the drums, the screen follows to bar 1
+4150 btndown 0
+4900 btnup 0
+5000 shot
 5500 btn 12
 # stopped, the echoes gone and silent for 2 s: the song is saved
 12000 end

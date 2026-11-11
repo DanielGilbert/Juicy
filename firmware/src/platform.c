@@ -8,7 +8,7 @@
  *   MIDI                USB in and out, the FM-1's TRS jack in (midi_get: 1 USB, 2 TRS; midi_send); clock and
  *                       transport (F8 FA FB FC) reach the app too
  *   USB audio           the output as a class-compliant 16-bit stereo input, 44.1 or 48 kHz
- *   keys, knobs, LEDs   fm1_in.notes / buttons, fm1_input_edges, fm1_enc_take, fm1_led_key, fm1_led_key_glow
+ *   keys, knobs, LEDs   fm1_in.notes / buttons, fm1_input_edges, fm1_enc_take, fm1_led_key, fm1_led_key_glow(_bright)
  *                       (hal/fm1_input.h; SMK-37: hal/smk_input.h, the same calls and velocity, pads, faders, wheels)
  *   screen              240 x 240, lcd_fill, draw_text_box with FONT_S (16 px) / FONT_L (32 px) (gfx.c); LCD_IDLE
  *   storage             settings, NBLOB blobs of one sector, NSLOT slots of SLOT_SECT sectors, each with a CRC (store.h)
@@ -57,6 +57,7 @@ enum { ENC_SELECT = 0, ENC_ALGORITHM = 1, ENC_KNOB1 = 2, ENC_KNOB2 = 3, ENC_KNOB
 #if BOARD_SMK37
 #include "smk_input.h"                          /* keys with velocity, buttons, 8 encoders, LEDs, pads, faders, wheels */
 static void fm1_led_key_glow(uint32_t id, int on) { (void)id; (void)on; }   /* (no key LEDs: the pads glow) */
+static void fm1_led_key_glow_bright(uint32_t id, int on) { (void)id; (void)on; }
 #else
 #define FM1_SETTLE_US 100u                      /* the boot scan (OCT- for the rescue): 10 us read no key on an FM-1, the tick waits 100 too */
 #include "fm1_input.h"
@@ -68,6 +69,20 @@ static void fm1_led_key_glow(uint32_t id, int on)   /* as fm1_led_key, the dim l
             if (FM1_KEYMAP[r][p] == (int8_t)id) {
                 if (on) fm1_led_dim[p] |= (uint8_t)(1u << r);
                 else fm1_led_dim[p] &= (uint8_t)~(1u << r);
+            }
+}
+#ifndef FM1_GLOW_BRIGHT_NS
+#define FM1_GLOW_BRIGHT_NS 10000u               /* the brighter glow's pulse a frame (ns): 2.5 times FM1_GLOW_NS */
+#endif
+static void fm1_led_key_glow_bright(uint32_t id, int on)   /* a glow that stands out among the glowing: the backlight layer, where the key does not glow */
+{
+    uint32_t p, r;
+    fm1_led_bg_ns = FM1_GLOW_BRIGHT_NS;
+    for (p = 0; p < FM1_NCOL; p++)
+        for (r = 1; r < 5u; r++)
+            if (FM1_KEYMAP[r][p] == (int8_t)id) {
+                if (on) fm1_led_bg[p] |= (uint8_t)(1u << r);
+                else fm1_led_bg[p] &= (uint8_t)~(1u << r);
             }
 }
 #endif

@@ -9,7 +9,7 @@
 290 btn 3
 300 keys 0x20
 350 keys 0
-360 btn 3
+360 btn 6
 400 enc 5 -40
 1000 enc 2 1
 # HOME, KNOB4: REVERB from 35 to 100, HOME. The next note (D4)

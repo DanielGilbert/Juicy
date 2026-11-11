@@ -27,12 +27,11 @@
 5100 keys 0x4
 5150 keys 0
 5600 shot
-# SEL while EDIT is on: OP4 still picks the pad. SEL, EDIT off: its leftmost key plays the chord on F2
+# SEL while EDIT is on: EDIT goes off, OP4 picks the pad. SEL off: its leftmost key plays the chord on F2
 6000 btn 3
 6050 keys 0x100
 6100 keys 0
 6150 btn 3
-6200 btn 6
 6500 keys 0x1
 7500 keys 0
 7700 shot

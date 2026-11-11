@@ -9,7 +9,7 @@
 290 btn 3
 300 keys 0x20
 350 keys 0
-360 btn 3
+360 btn 6
 # KNOB1 one note up (C#4, 277 Hz): it sounds for 200 ms, the first song sends 40 of 100 into the echo
 1000 enc 2 1
 1500 shot
