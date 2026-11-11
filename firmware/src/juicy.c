@@ -1,21 +1,28 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Juicy: a groovebox for the M-VAVE FM-1, built on Dinghy (platform.c and everything below it: updates, the USB
- * rescue, the keys, knobs, LEDs, the screen, flash storage). Five tracks, DRUMS, BASS, SEQUENCE, PAD and LEAD, in
- * eight patterns (A..H) in which each track has up to four bars of 16 steps of its own (a pattern lasts as long as
- * its longest track, the shorter ones go round), a chain that plays patterns one after the other, an echo
+ * rescue, the keys, knobs, LEDs, the screen, flash storage). Five tracks, DRUMS (six of them: KICK, HAT, CLAP,
+ * OPEN HAT, SNARE, TOM), BASS, SEQUENCE, PAD and LEAD, in eight patterns (A..H) in which each track has up to four
+ * bars of 16 steps of its own (a pattern lasts as long as its longest track, the shorter ones go round), a chain that plays patterns one after the other, an echo
  * three steps long that all but the drums can send into, a reverb for SEQUENCE, PAD, LEAD and the echo, and a
  * limiter over all of it.
  *
- *   the keys     play: on DRUMS the lower keys from the left are the drums, on the other tracks all 27 keys are
+ *   the keys     play: on DRUMS the lower keys from the left are the six drums, on the other tracks all 27 keys are
  *                notes (the pad's: the chord on that note). Nothing of it goes into the pattern, but what was
  *                played last is what EDIT puts there
  *   SEL          (lit) OP1 .. OP5, the first five upper keys, pick the track on the screen: DRUMS, BASS,
  *                SEQUENCE, PAD, LEAD. SEL again: the keys play. SEL and EDIT are never on together: the one
- *                pressed turns the other off
+ *                pressed turns the other off. The five black keys an octave above OP1 .. OP5 mute and unmute
+ *                those tracks (lit: it plays): what the pattern holds is not heard, the keys still are. Mutes are
+ *                not saved
  *   EDIT         (lit, the page's name orange) the lower keys are the 16 steps of the bar on the screen: a press
  *                puts what was played or what the knobs show there (a hit of that drum, that note, that chord),
  *                or takes it away again
+ *   FX           on BASS, SEQUENCE, PAD and LEAD: the track's sound page. The knobs shape the sound (WAVE, RESO,
+ *                ATTACK, ENV; the pad's SPREAD, RESO, ATTACK, RELEASE), ALGORITHM picks a named one or USER1 /
+ *                USER2 (the player's own, there for every song), SEQ keeps the sound as USER1, REC as USER2
+ *                (each asks twice); all of it with EDIT on. The keys play here, EDIT or not. FX again: the notes
  *   KNOB1..4     (with EDIT on, as SEQ and REC) what the four places along the bottom of the screen say; on DRUMS KNOB1 moves the orange row
+ *                (DRUMS shows three drums at a time: the page of the selected one, two marks at the bottom say which)
  *   OCT- OCT+    the bar on the screen: the one before, the next one. With EDIT on, on a track's page, OCT+ past
  *                the track's last bar gives it one more (up to four), and OCT- held takes the bar on the screen
  *                out of the track (its only bar: emptied)
@@ -49,34 +56,23 @@
 #include "reverb.c"
 #include "limiter.c"
 
-/* ---- the melodic tracks: BASS, SEQUENCE and LEAD are each one synth voice (synth.c) with a shape of its own,
- * PAD is the pad (pad.c), where a note is the root of a chord */
+/* ---- the melodic tracks: BASS, SEQUENCE and LEAD are each one synth voice (synth.c) whose shape is the track's
+ * sound (below), PAD is the pad (pad.c), where a note is the root of a chord */
 enum { MELODIC_BASS, MELODIC_SEQUENCE, MELODIC_PAD, MELODIC_LEAD, MELODIC_COUNT };
 #define NOTE_MASK 0x7Fu                         /* a step of a melodic track: the MIDI note, 0 = none ... */
 #define NOTE_MAJOR 0x80u                        /* ... and on the pad's track: the chord is major, not minor */
 
 static const struct {
-    synth_shape_t shape;
+    int32_t gains[SYNTH_WAVE_COUNT];            /* Q15, a wave each (SYNTH_WAVE_*): as loud as one another */
+    uint32_t release_rate;                      /* a note let go (synth_shape_t) */
     uint8_t note_lowest, note_highest;          /* MIDI */
 } MELODIC[MELODIC_COUNT] = {
-    {{0, 25, 12000, 0, SYNTH_RELEASE_RATE}, 24, 60},   /* BASS: a sawtooth, C1..C4 */
-    {{0x55555555u, 24, 8250, 0, SYNTH_RELEASE_RATE}, 48, 84},   /* SEQUENCE: a pulse a third wide, the filter plucked twice as far, C3..C6 */
-    {{0, 0, 0, 0, 0}, 36, 72},                  /* PAD: no synth voice; the chord's root C2..C5 */
-    {{0, 25, 8000, 7, 0}, 48, 84},              /* LEAD: two sawtooths 13 cents apart, a note rings on past its step, C3..C6 */
+    {{12000, 6924, 7344, 16968, 12000}, SYNTH_RELEASE_RATE, 24, 60},   /* BASS: C1..C4 */
+    {{13480, 7778, 8250, 19061, 13480}, SYNTH_RELEASE_RATE, 48, 84},   /* SEQUENCE: C3..C6 */
+    {{0}, 0, 36, 72},                           /* PAD: no synth voice; the chord's root C2..C5 */
+    {{5658, 3264, 3463, 8000, 5658}, 0, 48, 84},   /* LEAD: a note rings on past its step, C3..C6 */
 };
 static synth_voice_t melodic_voices[MELODIC_COUNT];   /* (the pad's is not used) */
-
-static void melodic_note_on(uint32_t melodic, uint32_t value)   /* value: as in song.notes */
-{
-    if (melodic == MELODIC_PAD) pad_chord_on(value & NOTE_MASK, (value & NOTE_MAJOR) != 0u);
-    else synth_note_on(&melodic_voices[melodic], value);
-}
-
-static void melodic_note_off(uint32_t melodic)
-{
-    if (melodic == MELODIC_PAD) pad_chord_off();
-    else synth_note_off(&melodic_voices[melodic]);
-}
 
 /* ---- the song: what plays, what is saved. The main loop writes it, the audio ISR reads it. */
 #define STEPS_PER_BAR 16u
@@ -88,6 +84,7 @@ static void melodic_note_off(uint32_t melodic)
 #define ECHO_SEND_MAX 100u
 #define REVERB_MAX 100u
 #define ECHO_STEPS 3u                           /* the echo comes back a dotted eighth later */
+#define SOUND_KNOBS 4u                          /* a sound's page: BASS, SEQUENCE, LEAD: WAVE, RESO, ATTACK, ENV; PAD: SPREAD, RESO, ATTACK, RELEASE */
 
 typedef struct {
     uint16_t drum_hits[DRUM_COUNT][BAR_COUNT];  /* bit s: a hit on step s of that bar */
@@ -110,11 +107,126 @@ typedef struct {
     uint8_t echo[MELODIC_COUNT];                /* how much of the track goes into the echo, 0..ECHO_SEND_MAX */
     uint8_t tempo;
     uint8_t reverb;                             /* how much of SEQUENCE, PAD, LEAD and the echo goes into the reverb, 0..REVERB_MAX */
+    uint8_t sounds[MELODIC_COUNT][SOUND_KNOBS]; /* each track's sound page (with its CUTOFF and DECAY above: its sound) */
+    uint8_t sound_choices[MELODIC_COUNT];       /* the sound it came from: a preset, then USER1, USER2 */
 } song_t;
 
 static volatile song_t song;
 
-/* a song with nothing in it but the sounds of the tracks, the tempo and the reverb */
+/* ---- the sounds of the melodic tracks. A sound is the four knobs of a track's sound page and its CUTOFF and
+ * DECAY. Each track has a few named ones and two of the player's own (USER1, USER2: in flash, slot 1, for every
+ * song). The song keeps each track's sound as it is, and which one it came from. */
+#define PRESETS_MAX 4u
+#define USER_SOUNDS 2u
+#define USER_SOUNDS_SLOT 1u                     /* (the library's is 0) */
+
+typedef struct { uint8_t knobs[SOUND_KNOBS]; uint8_t cutoff, decay; } sound_t;
+
+static const struct {
+    uint32_t count;
+    const char *names[PRESETS_MAX];
+    sound_t sounds[PRESETS_MAX];
+} PRESETS[MELODIC_COUNT] = {
+    {4, {"PLUCK", "SUB", "ACID", "REESE"},       /* BASS (PLUCK: the first song's) */
+     {{{SYNTH_WAVE_SAW, 50, 0, 32}, 45, 35}, {{SYNTH_WAVE_SOFT, 0, 0, 0}, 30, 70},
+      {{SYNTH_WAVE_SAW, 92, 0, 70}, 15, 30}, {{SYNTH_WAVE_SAWS, 30, 0, 10}, 40, 80}}},
+    {4, {"PLUCK", "SQUARE", "SAW", "SOFT"},      /* SEQUENCE */
+     {{{SYNTH_WAVE_PULSE, 50, 0, 64}, 50, 25}, {{SYNTH_WAVE_SQUARE, 50, 0, 40}, 45, 30},
+      {{SYNTH_WAVE_SAW, 60, 0, 50}, 40, 25}, {{SYNTH_WAVE_SOFT, 20, 30, 10}, 60, 45}}},
+    {3, {"WARM", "BRIGHT", "SLOW"},              /* PAD: SPREAD, RESO, ATTACK, RELEASE; no DECAY */
+     {{{64, 0, 51, 72}, 50, 0}, {{90, 45, 40, 72}, 70, 0}, {{64, 0, 85, 90}, 45, 0}}},
+    {3, {"SUPERSAW", "SQUARE", "SOFT"},          /* LEAD */
+     {{{SYNTH_WAVE_SAWS, 50, 0, 32}, 65, 55}, {{SYNTH_WAVE_SQUARE, 40, 0, 30}, 60, 55},
+      {{SYNTH_WAVE_SOFT, 20, 45, 10}, 70, 70}}},
+};
+static const char *const USER_NAMES[USER_SOUNDS] = {"USER1", "USER2"};
+static sound_t user_sounds[MELODIC_COUNT][USER_SOUNDS];   /* (the main loop's) */
+
+static uint32_t sound_count(uint32_t melodic) { return PRESETS[melodic].count + USER_SOUNDS; }
+
+static const char *sound_name(uint32_t melodic, uint32_t choice)
+{
+    return choice < PRESETS[melodic].count ? PRESETS[melodic].names[choice] : USER_NAMES[choice - PRESETS[melodic].count];
+}
+
+static const sound_t *sound_source(uint32_t melodic, uint32_t choice)
+{
+    return choice < PRESETS[melodic].count ? &PRESETS[melodic].sounds[choice] : &user_sounds[melodic][choice - PRESETS[melodic].count];
+}
+
+static uint32_t sound_knob_max(uint32_t melodic, uint32_t knob)   /* WAVE is one of the waves, the rest 0..100 */
+{
+    return melodic != MELODIC_PAD && knob == 0u ? SYNTH_WAVE_COUNT - 1u : SYNTH_PARAMETER_MAX;
+}
+
+static void sound_apply(uint32_t melodic, uint32_t choice)   /* the track's sound is that one now */
+{
+    const sound_t *source = sound_source(melodic, choice);
+    uint32_t knob;
+    for (knob = 0; knob < SOUND_KNOBS; knob++) song.sounds[melodic][knob] = source->knobs[knob];
+    song.cutoff[melodic] = source->cutoff;
+    song.decay[melodic] = source->decay;
+    song.sound_choices[melodic] = (uint8_t)choice;
+}
+
+static void sound_of_track(uint32_t melodic, sound_t *sound)   /* the track's sound as it is now */
+{
+    uint32_t knob;
+    for (knob = 0; knob < SOUND_KNOBS; knob++) sound->knobs[knob] = song.sounds[melodic][knob];
+    sound->cutoff = song.cutoff[melodic];
+    sound->decay = song.decay[melodic];
+}
+
+static int sound_edited(uint32_t melodic)       /* it is not the one it came from any more */
+{
+    sound_t now;
+    sound_of_track(melodic, &now);
+    return memcmp(&now, sound_source(melodic, song.sound_choices[melodic]), sizeof now) != 0;
+}
+
+static void user_sounds_load(void)              /* nothing kept, or something broken: both are the first named sound */
+{
+    uint32_t melodic, place, knob, valid = !slot_load(USER_SOUNDS_SLOT, user_sounds, sizeof user_sounds);
+    for (melodic = 0; valid && melodic < MELODIC_COUNT; melodic++)
+        for (place = 0; place < USER_SOUNDS; place++) {
+            for (knob = 0; knob < SOUND_KNOBS; knob++)
+                if (user_sounds[melodic][place].knobs[knob] > sound_knob_max(melodic, knob)) valid = 0;
+            if (user_sounds[melodic][place].cutoff > SYNTH_PARAMETER_MAX || user_sounds[melodic][place].decay > SYNTH_PARAMETER_MAX) valid = 0;
+        }
+    if (valid) return;
+    for (melodic = 0; melodic < MELODIC_COUNT; melodic++)
+        for (place = 0; place < USER_SOUNDS; place++)
+            user_sounds[melodic][place] = PRESETS[melodic].sounds[0];
+}
+
+static void melodic_shape(uint32_t melodic, synth_shape_t *shape)   /* (the audio ISR's) the synth as the sound says */
+{
+    const volatile uint8_t *knobs = song.sounds[melodic];
+    shape->wave = knobs[0];
+    shape->gain = MELODIC[melodic].gains[knobs[0]];
+    shape->damping = SYNTH_DAMPING[knobs[1]];
+    shape->attack_rate = SYNTH_ATTACK_RATE[knobs[2]];
+    shape->envelope_amount = knobs[3];
+    shape->release_rate = MELODIC[melodic].release_rate;
+}
+
+static void melodic_note_on(uint32_t melodic, uint32_t value)   /* value: as in song.notes */
+{
+    if (melodic == MELODIC_PAD) pad_chord_on(value & NOTE_MASK, (value & NOTE_MAJOR) != 0u, song.sounds[MELODIC_PAD][0]);
+    else {
+        synth_shape_t shape;
+        melodic_shape(melodic, &shape);
+        synth_note_on(&melodic_voices[melodic], &shape, value);
+    }
+}
+
+static void melodic_note_off(uint32_t melodic)
+{
+    if (melodic == MELODIC_PAD) pad_chord_off();
+    else synth_note_off(&melodic_voices[melodic]);
+}
+
+/* a song with nothing in it but the sounds of the tracks (each its first named one), the tempo and the reverb */
 static void empty_song(void)
 {
     uint32_t index, track;
@@ -122,14 +234,9 @@ static void empty_song(void)
     for (index = 0; index < PATTERN_COUNT; index++)
         for (track = 0; track < sizeof song.patterns[index].bar_totals; track++)
             song.patterns[index].bar_totals[track] = 1;
-    song.cutoff[MELODIC_BASS] = 45;
-    song.decay[MELODIC_BASS] = 35;
-    song.cutoff[MELODIC_SEQUENCE] = 50;
-    song.decay[MELODIC_SEQUENCE] = 25;
+    for (track = 0; track < MELODIC_COUNT; track++)
+        sound_apply(track, 0);
     song.echo[MELODIC_SEQUENCE] = 40;
-    song.cutoff[MELODIC_PAD] = 50;
-    song.cutoff[MELODIC_LEAD] = 65;
-    song.decay[MELODIC_LEAD] = 55;
     song.echo[MELODIC_LEAD] = 50;
     song.tempo = 138;
     song.reverb = 35;
@@ -204,10 +311,13 @@ static int pattern_empty(const volatile pattern_t *pattern)
 
 static int song_valid(const volatile song_t *checked)
 {
-    uint32_t melodic, index, track;
-    for (melodic = 0; melodic < MELODIC_COUNT; melodic++)
+    uint32_t melodic, index, track, knob;
+    for (melodic = 0; melodic < MELODIC_COUNT; melodic++) {
         if (checked->cutoff[melodic] > SYNTH_PARAMETER_MAX || checked->decay[melodic] > SYNTH_PARAMETER_MAX
-            || checked->echo[melodic] > ECHO_SEND_MAX) return 0;
+            || checked->echo[melodic] > ECHO_SEND_MAX || checked->sound_choices[melodic] >= sound_count(melodic)) return 0;
+        for (knob = 0; knob < SOUND_KNOBS; knob++)
+            if (checked->sounds[melodic][knob] > sound_knob_max(melodic, knob)) return 0;
+    }
     for (index = 0; index < PATTERN_COUNT; index++)
         for (track = 0; track < sizeof checked->patterns[index].bar_totals; track++)
             if (checked->patterns[index].bar_totals[track] < 1u || checked->patterns[index].bar_totals[track] > BAR_COUNT) return 0;
@@ -267,6 +377,7 @@ static volatile uint32_t drum_auditions[DRUM_COUNT];   /* counts up when the mai
 static volatile uint32_t note_auditions[MELODIC_COUNT], audition_notes[MELODIC_COUNT];   /* the same for a note (the note is written first) */
 static volatile uint32_t note_held[MELODIC_COUNT];   /* the key that plays that note is down: it sounds until the key lets go (the main loop writes) */
 static volatile uint32_t chain_on;              /* the chain plays, not the pattern on the screen (the main loop writes) */
+static volatile uint32_t muted_tracks;          /* bit t: track t (a page: DRUMS, then the melodic tracks) does not play its pattern (the main loop writes) */
 static volatile uint32_t loop_pattern;          /* the pattern on the screen: it plays when the chain does not (the main loop writes) */
 static volatile uint32_t playing_step;          /* the step that sounds now, counted from the pattern's bar 1 (the ISR writes) */
 static volatile uint32_t playing_pattern;       /* the pattern that sounds now (the ISR writes) */
@@ -283,10 +394,14 @@ static void render(int32_t *out, uint32_t frame_count)   /* at most BLOCK_FRAMES
     for (melodic = 0; melodic < MELODIC_COUNT; melodic++) {
         int32_t send_gain = (int32_t)(song.echo[melodic] * 5u);   /* of 512: echo / 100, near enough */
         if (melodic == MELODIC_PAD)
-            pad_render(room, echo_send, frame_count, song.cutoff[melodic], send_gain);
-        else
-            synth_render(&melodic_voices[melodic], &MELODIC[melodic].shape, melodic == MELODIC_BASS ? out : room, echo_send,
+            pad_render(room, echo_send, frame_count, song.cutoff[melodic], send_gain,
+                       song.sounds[melodic][1], song.sounds[melodic][2], song.sounds[melodic][3]);
+        else {
+            synth_shape_t shape;
+            melodic_shape(melodic, &shape);
+            synth_render(&melodic_voices[melodic], &shape, melodic == MELODIC_BASS ? out : room, echo_send,
                          frame_count, song.cutoff[melodic], song.decay[melodic], send_gain);
+        }
     }
     echo_render(room, echo_send, frame_count, ECHO_STEPS * frames_per_step_q8 >> 8);
     reverb_render(out, room, frame_count, song.reverb);
@@ -364,11 +479,16 @@ static void app_audio(int32_t *out, uint32_t frame_count)
             bar = next_step / STEPS_PER_BAR;    /* (of the pattern: a track with fewer bars goes round) */
             step = next_step % STEPS_PER_BAR;
             for (drum = 0; drum < DRUM_COUNT; drum++)
-                if (pattern->drum_hits[drum][bar % pattern->bar_totals[0]] >> step & 1u)
+                if (!(muted_tracks & 1u) && pattern->drum_hits[drum][bar % pattern->bar_totals[0]] >> step & 1u)
                     drums_trigger(drum);
             for (melodic = 0; melodic < MELODIC_COUNT; melodic++) {   /* a note lasts its step: an empty step lets it go */
                 uint32_t note = pattern->notes[melodic][bar % pattern->bar_totals[1u + melodic]][step];
+                if (muted_tracks >> (1u + melodic) & 1u) note = 0;   /* muted: as if the steps were empty */
                 if (melodic == MELODIC_PAD) {   /* but the pad holds its chord until the next one */
+                    if (!note && muted_tracks >> (1u + melodic) & 1u && pad_pattern_value) {   /* (muted: not that one either) */
+                        pad_pattern_value = 0;
+                        melodic_note_off(melodic);
+                    }
                     if (!note) continue;
                     pad_pattern_value = note;
                 }
@@ -414,10 +534,13 @@ enum { PAGE_DRUMS, MELODIC_FIRST_PAGE, TRACK_COUNT = MELODIC_FIRST_PAGE + MELODI
 _Static_assert(sizeof ((pattern_t *)0)->bar_totals == TRACK_COUNT, "a track's page is its place in bar_totals");
 
 static const char *const PAGE_NAMES[] = {"DRUMS", "BASS", "SEQUENCE", "PAD", "LEAD", "JUICY", "SONGS", "LIBRARY"};
-static const char *const DRUM_NAMES[DRUM_COUNT] = {"KICK", "HAT", "CLAP"};
+static const char *const DRUM_NAMES[DRUM_COUNT] = {"KICK", "HAT", "CLAP", "OPEN HAT", "SNARE", "TOM"};
+#define DRUMS_PER_PAGE 3u                       /* the drums' page shows three at a time */
+#define DRUM_PAGES (DRUM_COUNT / DRUMS_PER_PAGE)
 static const char *const CHORD_NAMES[2] = {"MIN", "MAJ"};
 static const uint8_t STEP_KEYS[STEPS_PER_BAR] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* the lower keys, left to right */
 static const uint8_t TRACK_KEYS[TRACK_COUNT] = {1, 3, 5, 8, 10};   /* the upper keys printed OP1 .. OP5 */
+static const uint8_t MUTE_KEYS[TRACK_COUNT] = {13, 15, 17, 20, 22};   /* (with SEL) the same five an octave up */
 #define KEY_COUNT 27u
 #define HOLD_MS 600u                            /* a button held this long: its other job */
 #define KEYS_FIRST_NOTE_ABOVE_LOWEST 5u         /* a track's lowest note is a C, the leftmost key an F: the keys play F .. G, 27 notes */
@@ -447,15 +570,40 @@ static void pattern_name(char *text, uint32_t pattern_index)   /* "A" .. "H" */
     text[1] = 0;
 }
 
+/* a cut-open orange on the canvas: the peel, the pith, the flesh in eight segments, the pith in the middle */
+#define ORANGE_RADIUS 14
+#define C_ORANGE_PEEL C_ACCENT
+#define C_ORANGE_PITH RGB(255, 236, 200)
+#define C_ORANGE_FLESH RGB(255, 172, 40)
+
+static void draw_orange(int32_t centre_x, int32_t centre_y)
+{
+    int32_t x, y;
+    for (y = -ORANGE_RADIUS; y <= ORANGE_RADIUS; y++)
+        for (x = -ORANGE_RADIUS; x <= ORANGE_RADIUS; x++) {
+            int32_t distance_squared = x * x + y * y;   /* (each circle half a pixel wider: r * r + r, no lone pixel at its edge) */
+            uint16_t colour;
+            if (distance_squared > ORANGE_RADIUS * ORANGE_RADIUS + ORANGE_RADIUS) continue;
+            if (distance_squared > (ORANGE_RADIUS - 2) * (ORANGE_RADIUS - 1)) colour = C_ORANGE_PEEL;
+            else if (distance_squared > (ORANGE_RADIUS - 3) * (ORANGE_RADIUS - 2) || distance_squared <= 2
+                     || x == 0 || y == 0 || x == y || x == -y) colour = C_ORANGE_PITH;   /* the pith, between the segments */
+            else colour = C_ORANGE_FLESH;
+            cv_pset(centre_x + x, centre_y + y, colour);
+        }
+}
+
 /* the name, and a box per bar of the track on the screen (HOME's page: of the pattern): orange with the pattern's letter the one on the screen,
- * dark those that do not play, a mark under the one that sounds. The name is orange while EDIT is on */
-static void draw_header(uint32_t page, uint32_t pattern_index, uint32_t bar_total, uint32_t shown_bar, uint32_t marked_bar, int editing)
+ * dark those that do not play, a mark under the one that sounds. The name is orange while EDIT is on, dark while
+ * the track is muted */
+static void draw_header(uint32_t page, uint32_t pattern_index, uint32_t bar_total, uint32_t shown_bar, uint32_t marked_bar, int editing, int muted)
 {
     uint32_t bar;
     char letter[2];
     pattern_name(letter, pattern_index);
     cv_begin(240, HEADER_HEIGHT, C_BLACK);
-    cv_text(4, 6, &FONT_L, PAGE_NAMES[page], editing ? C_ACCENT : C_HIT);   /* orange: the keys change this page (EDIT) */
+    if (page == PAGE_GLOBAL) draw_orange(ORANGE_RADIUS + 4, HEADER_HEIGHT / 2);   /* JUICY's own: the orange before its name */
+    cv_text(page == PAGE_GLOBAL ? 2 * ORANGE_RADIUS + 10 : 4, 6, &FONT_L, PAGE_NAMES[page],
+            editing ? C_ACCENT : muted ? C_STEP_ODD_BEAT : C_HIT);   /* orange: the keys change this page (EDIT); dark: muted */
     for (bar = 0; bar < BAR_COUNT; bar++) {
         int32_t x = (int32_t)(148u + bar * 22u);
         cv_rect(x, 10, 18, 18, bar == shown_bar ? C_ACCENT : bar < bar_total ? C_HIT : C_STEP_EVEN_BEAT);
@@ -556,7 +704,37 @@ static void draw_library(uint32_t selected_place, uint32_t places_with_pattern, 
     cv_blit(0, BODY_TOP);
 }
 
-static void draw_drum_row(uint32_t drum, uint32_t hits, int selected, uint32_t marked_step)
+/* what the sound page says under the sound's name */
+enum { SOUND_NOTE_NONE, SOUND_NOTE_KEEP_ASKED, SOUND_NOTE_KEEP_ASKED_2, SOUND_NOTE_KEPT, SOUND_NOTE_KEPT_2 };
+#define SOUND_HEIGHT 124u
+
+static const char *const WAVE_NAMES[SYNTH_WAVE_COUNT] = {"SAW", "SQUARE", "PULSE", "2 SAWS", "SOFT"};
+
+/* a melodic track's sound page: the name of the sound (a * when it has been changed since), what ALGORITHM, SEQ and
+ * REC do, or what has just happened */
+static void draw_sound(uint32_t melodic, int edited, uint32_t note)
+{
+    static const char *const NOTES[] = {"", "SEQ AGAIN: KEEP AS USER1", "REC AGAIN: KEEP AS USER2", "KEPT AS USER1", "KEPT AS USER2"};
+    const char *source = sound_name(melodic, song.sound_choices[melodic]);
+    char name[16];
+    uint32_t length = 0;
+    while (source[length] && length < sizeof name - 2u) { name[length] = source[length]; length++; }
+    if (edited) name[length++] = '*';
+    name[length] = 0;
+    cv_begin(240, SOUND_HEIGHT, C_BLACK);
+    cv_text(4, 0, &FONT_S, "SOUND", C_LABEL);
+    cv_text(4, 20, &FONT_L, name, C_WHITE);
+    if (note)
+        cv_text(4, 64, &FONT_S, NOTES[note], C_ACCENT);
+    else {
+        cv_text(4, 64, &FONT_S, "ALGORITHM: OTHER SOUNDS", C_LABEL);
+        cv_text(4, 84, &FONT_S, "SEQ: KEEP AS USER1", C_LABEL);
+        cv_text(4, 104, &FONT_S, "REC: KEEP AS USER2", C_LABEL);
+    }
+    cv_blit(0, BODY_TOP);
+}
+
+static void draw_drum_row(uint32_t drum, uint32_t row, uint32_t hits, int selected, uint32_t marked_step)   /* row: of the page */
 {
     uint32_t step;
     cv_begin(240, DRUM_ROW_HEIGHT, C_BLACK);
@@ -567,7 +745,16 @@ static void draw_drum_row(uint32_t drum, uint32_t hits, int selected, uint32_t m
         cv_rect(step_x(step), 20, 12, 20, colour);
         if (step == marked_step) cv_rect(step_x(step), 42, 12, 3, C_WHITE);
     }
-    cv_blit(0, BODY_TOP + drum * DRUM_ROW_HEIGHT);
+    cv_blit(0, BODY_TOP + row * DRUM_ROW_HEIGHT);
+}
+
+static void draw_drum_pages(uint32_t drum_page)   /* a mark per page of drums, under the knobs' labels; orange the one shown */
+{
+    uint32_t mark;
+    cv_begin(240, 8, C_BLACK);
+    for (mark = 0; mark < DRUM_PAGES; mark++)
+        cv_rect((int32_t)(120u - DRUM_PAGES * 12u + mark * 24u + 4u), 0, 16, 8, mark == drum_page ? C_ACCENT : C_STEP_ODD_BEAT);
+    cv_blit(0, 216);
 }
 
 /* a melodic track's bar as a piano roll: a column per step, a row per note (lowest_note at the bottom), the selected
@@ -652,11 +839,13 @@ static void app_main(void)
     uint32_t library_shown = 0;                 /* SAVE again: the library's page */
     uint32_t selected_library_place = 0, library_note = LIBRARY_NOTE_NONE, places_with_pattern = 0;   /* bit p: library place p holds a pattern */
     uint32_t library_unsaved = 0;               /* the library goes to flash as soon as nothing sounds */
+    uint32_t sound_shown = 0;                   /* FX: a melodic track's sound page */
+    uint32_t sound_note = SOUND_NOTE_NONE, user_sounds_unsaved = 0, sound_drawn = 0;
     uint32_t selected_place = PLACE_FIRST_KEPT, songs_note = SONGS_NOTE_NONE;
     uint32_t places_with_song = 1u << PLACE_DEMO | 1u << PLACE_NEW;   /* bit p: place p holds a song */
     uint32_t place_to_save = PLACE_COUNT;       /* the place the song goes to as soon as nothing sounds, PLACE_COUNT = none */
     uint32_t unsaved = 0, changed_ms = 0, knob, step, drum, track, key, place;
-    uint32_t page_drawn = ~0u, header_drawn = 0, drum_row_drawn[DRUM_COUNT] = {0}, roll_drawn = 0, roll_marker_drawn = 0;
+    uint32_t page_drawn = ~0u, header_drawn = 0, drum_row_drawn[DRUMS_PER_PAGE] = {0}, drum_pages_drawn = 0, roll_drawn = 0, roll_marker_drawn = 0;
     uint32_t knob_drawn[KNOB_COUNT] = {0}, chain_drawn = 0, songs_drawn = 0, library_drawn = 0;
 
     if (settings_load((void *)&song, sizeof song) || !song_valid(&song))
@@ -664,6 +853,7 @@ static void app_main(void)
     for (place = PLACE_FIRST_KEPT; place < PLACE_COUNT; place++)
         if (place_kept_valid(place)) places_with_song |= 1u << place;
     library_load();
+    user_sounds_load();
     for (place = 0; place < LIBRARY_PLACES; place++)
         if (!pattern_empty(&library.patterns[place])) places_with_pattern |= 1u << place;
     frames_per_step_q8 = FRAMES_PER_STEP_Q8(song.tempo);
@@ -680,8 +870,8 @@ static void app_main(void)
         uint32_t step_leds = 0, melodic = 0, keys_glowing = 0, keys_glowing_bright = 0, keys_lit = 0;
         uint32_t bar_total;                     /* of what the page shows: its track, or the whole pattern */
         volatile pattern_t *pattern;
-        int32_t detents[KNOB_COUNT], presets_detents;
-        int song_changed = 0, keys_edit, keys_play;
+        int32_t detents[KNOB_COUNT], presets_detents, algorithm_detents;
+        int song_changed = 0, keys_edit, keys_play, sound_page;
         platform_poll();
 
         keys = fm1_in.notes;                    /* bit k: key k (0 = F3 .. 26 = G5) */
@@ -708,14 +898,21 @@ static void app_main(void)
             edit_on = !edit_on;
             if (edit_on) select_on = 0;
         }
-        keys_edit = !select_on && edit_on;      /* what the keys do: SEL comes first, then EDIT, else they play */
-        keys_play = !select_on && !edit_on;
+        for (track = 0; track < TRACK_COUNT; track++)
+            if (select_on && keys_pressed >> MUTE_KEYS[track] & 1u)
+                muted_tracks ^= 1u << track;
         for (track = 0; track < TRACK_COUNT; track++)
             if (select_on && keys_pressed >> TRACK_KEYS[track] & 1u) {
                 shown_track = track;
                 global_shown = songs_shown = library_shown = 0;
             }
         page = songs_shown ? PAGE_SONGS : library_shown ? PAGE_LIBRARY : global_shown ? PAGE_GLOBAL : shown_track;
+        if (buttons_pressed & (1u << BTN_FX) && page > PAGE_DRUMS && page < TRACK_COUNT) sound_shown = !sound_shown;
+        sound_page = sound_shown && page > PAGE_DRUMS && page < TRACK_COUNT;
+        keys_edit = !select_on && edit_on && !sound_page;   /* what the keys do: SEL comes first, then EDIT, else they play */
+        keys_play = !select_on && (!edit_on || sound_page);   /* (on a sound page they always play) */
+        algorithm_detents = fm1_enc_take(ENC_ALGORITHM);
+        if (!sound_page) sound_note = SOUND_NOTE_NONE;
         presets_detents = fm1_enc_take(ENC_PRESETS);   /* the pattern on the screen, on every page, as OCT is */
         shown_pattern = turned_value(shown_pattern, presets_detents, 0, PATTERN_COUNT - 1u);
         if (page != PAGE_SONGS) songs_note = SONGS_NOTE_NONE;
@@ -752,7 +949,31 @@ static void app_main(void)
         } else if (page != PAGE_SONGS) {
             if (!edit_on)                       /* nothing changes unless EDIT is on: the knobs, SEQ and REC wait for it */
                 for (knob = 0; knob < KNOB_COUNT; knob++) detents[knob] = 0;
-            if (edit_on && buttons_pressed & (1u << BTN_SEQ)) chain_on = !chain_on;
+            if (sound_page) {                   /* the knobs shape the sound, ALGORITHM picks one, SEQ / REC keep it */
+                uint32_t sound_melodic = page - MELODIC_FIRST_PAGE, user_place;
+                if (edit_on && algorithm_detents) {
+                    sound_apply(sound_melodic, turned_value(song.sound_choices[sound_melodic], algorithm_detents, 0, sound_count(sound_melodic) - 1u));
+                    sound_note = SOUND_NOTE_NONE;
+                    song_changed = 1;
+                }
+                for (knob = 0; knob < KNOB_COUNT; knob++)
+                    if (detents[knob]) {
+                        song_changed |= turn_setting(&song.sounds[sound_melodic][knob], detents[knob], 0, sound_knob_max(sound_melodic, knob));
+                        sound_note = SOUND_NOTE_NONE;
+                        detents[knob] = 0;
+                    }
+                for (user_place = 0; user_place < USER_SOUNDS; user_place++)
+                    if (edit_on && buttons_pressed & (1u << (user_place ? BTN_REC : BTN_SEQ))) {
+                        if (sound_note != SOUND_NOTE_KEEP_ASKED + user_place) sound_note = SOUND_NOTE_KEEP_ASKED + user_place;
+                        else {
+                            sound_of_track(sound_melodic, &user_sounds[sound_melodic][user_place]);
+                            song.sound_choices[sound_melodic] = (uint8_t)(PRESETS[sound_melodic].count + user_place);
+                            user_sounds_unsaved = 1;
+                            song_changed = 1;
+                            sound_note = SOUND_NOTE_KEPT + user_place;
+                        }
+                    }
+            } else if (edit_on && buttons_pressed & (1u << BTN_SEQ)) chain_on = !chain_on;
         } else {                                /* the songs' page asks for no EDIT: loading and saving over a song ask twice */
             if (detents[0]) {
                 selected_place = turned_value(selected_place, detents[0], 0, PLACE_COUNT - 1u);
@@ -912,8 +1133,10 @@ static void app_main(void)
         marked_slot = playing ? playing_slot : CHAIN_SLOTS;
         /* the keys: one that does something now glows, one that is on or selected is lit */
         if (select_on) {                        /* the track keys, the shown track's lit */
-            for (track = 0; track < TRACK_COUNT; track++)
-                keys_glowing |= 1u << TRACK_KEYS[track];
+            for (track = 0; track < TRACK_COUNT; track++) {   /* and the mute keys, lit where the track plays */
+                keys_glowing |= 1u << TRACK_KEYS[track] | 1u << MUTE_KEYS[track];
+                if (!(muted_tracks >> track & 1u)) keys_lit |= 1u << MUTE_KEYS[track];
+            }
             if (!global_shown) keys_lit = 1u << TRACK_KEYS[shown_track];
         } else if (page == PAGE_SONGS) {        /* no key does anything */
         } else if (page == PAGE_LIBRARY) {      /* the lower keys are the places, lit where there is a pattern */
@@ -921,7 +1144,7 @@ static void app_main(void)
                 keys_glowing |= 1u << STEP_KEYS[step];
                 if (places_with_pattern >> step & 1u) keys_lit |= 1u << STEP_KEYS[step];
             }
-        } else if (edit_on) {                   /* the lower keys, lit where there is something; what runs (the step, the chain's place) flips its key */
+        } else if (edit_on && !sound_page) {    /* the lower keys, lit where there is something; what runs (the step, the chain's place) flips its key */
             for (step = 0; step < STEPS_PER_BAR; step++) {
                 if (page < TRACK_COUNT && step % 4u == 0u) keys_glowing_bright |= 1u << STEP_KEYS[step];   /* a beat */
                 else keys_glowing |= 1u << STEP_KEYS[step];
@@ -946,6 +1169,8 @@ static void app_main(void)
         fm1_led_key(BTN_PLAY, playing && step_now % 4u == 0u);   /* playing: lit on each beat's first step, the beat */
         fm1_led_key(BTN_HOME, page == PAGE_GLOBAL);
         fm1_led_key(BTN_SAVE, page == PAGE_SONGS || page == PAGE_LIBRARY);
+        fm1_led_key_glow(BTN_FX, page > PAGE_DRUMS && page < TRACK_COUNT);   /* the sound page is there */
+        fm1_led_key(BTN_FX, sound_page);
         fm1_led_key(BTN_SEQ, chain_on != 0);
         fm1_led_key_glow(BTN_SEQ, page == PAGE_SONGS ? places_with_song >> selected_place & 1u
                                   : page == PAGE_LIBRARY ? places_with_pattern >> selected_library_place & 1u : edit_on != 0);
@@ -953,20 +1178,21 @@ static void app_main(void)
         fm1_led_key(BTN_EDIT, edit_on != 0);
         fm1_led_key_glow(BTN_OCT_DOWN, shown_bar > 0u);   /* there is a bar that way */
         fm1_led_key_glow(BTN_OCT_UP, shown_bar + 1u < bar_total || (edit_on && page < TRACK_COUNT && bar_total < BAR_COUNT));
-        fm1_led_key_glow(BTN_REC, page == PAGE_SONGS ? selected_place >= PLACE_FIRST_KEPT : page == PAGE_LIBRARY || (page == PAGE_GLOBAL && edit_on));
+        fm1_led_key_glow(BTN_REC, page == PAGE_SONGS ? selected_place >= PLACE_FIRST_KEPT : page == PAGE_LIBRARY || ((page == PAGE_GLOBAL || sound_page) && edit_on));
 
         /* the screen: only what changed. Each *_drawn holds what is on the screen (+ 1, so 0 means "draw it") */
-        if (page != page_drawn) {
-            page_drawn = page;
+        if (page + (sound_page ? 16u : 0u) != page_drawn) {   /* (a sound page is a page of its own) */
+            page_drawn = page + (sound_page ? 16u : 0u);
             lcd_fill(0, BODY_TOP, 240, BODY_HEIGHT, C_BLACK);
-            header_drawn = roll_drawn = roll_marker_drawn = chain_drawn = songs_drawn = library_drawn = 0;
-            for (drum = 0; drum < DRUM_COUNT; drum++) drum_row_drawn[drum] = 0;
+            header_drawn = roll_drawn = roll_marker_drawn = chain_drawn = songs_drawn = library_drawn = sound_drawn = 0;
+            for (drum = 0; drum < DRUMS_PER_PAGE; drum++) drum_row_drawn[drum] = 0;
+            drum_pages_drawn = 0;
             for (knob = 0; knob < KNOB_COUNT; knob++) knob_drawn[knob] = 0;
         }
-        state = 1u + (shown_bar | bar_total << 4 | marked_bar << 8 | shown_pattern << 12 | edit_on << 16);
+        state = 1u + (shown_bar | bar_total << 4 | marked_bar << 8 | shown_pattern << 12 | edit_on << 16 | muted_tracks << 17);
         if (state != header_drawn) {
             header_drawn = state;
-            draw_header(page, shown_pattern, bar_total, shown_bar, marked_bar, edit_on != 0);
+            draw_header(page, shown_pattern, bar_total, shown_bar, marked_bar, edit_on != 0, page < TRACK_COUNT && muted_tracks >> page & 1u);
         }
         if (page == PAGE_GLOBAL) {
             state = 1u + (shown_pattern | marked_slot << 4 | (uint32_t)(chain_on != 0) << 12);   /* (a changed place sets chain_drawn to 0) */
@@ -975,12 +1201,14 @@ static void app_main(void)
                 draw_chain(shown_pattern, marked_slot, chain_on != 0);
             }
         } else if (page == PAGE_DRUMS) {
-            for (drum = 0; drum < DRUM_COUNT; drum++) {
-                uint32_t hits = pattern->drum_hits[drum][shown_bar];
-                state = 1u + (hits | marked_step << 16 | (uint32_t)(drum == selected_drum) << 24);
-                if (state != drum_row_drawn[drum]) {
-                    drum_row_drawn[drum] = state;
-                    draw_drum_row(drum, hits, drum == selected_drum, marked_step);
+            uint32_t row;                       /* the page of the selected drum */
+            for (row = 0; row < DRUMS_PER_PAGE; row++) {
+                uint32_t row_drum = selected_drum / DRUMS_PER_PAGE * DRUMS_PER_PAGE + row;
+                uint32_t hits = pattern->drum_hits[row_drum][shown_bar];
+                state = 1u + (hits | marked_step << 16 | (uint32_t)(row_drum == selected_drum) << 24 | row_drum << 25);
+                if (state != drum_row_drawn[row]) {
+                    drum_row_drawn[row] = state;
+                    draw_drum_row(row_drum, row, hits, row_drum == selected_drum, marked_step);
                 }
             }
         } else if (page == PAGE_SONGS) {
@@ -994,6 +1222,12 @@ static void app_main(void)
             if (state != library_drawn) {
                 library_drawn = state;
                 draw_library(selected_library_place, places_with_pattern, shown_pattern, library_note);
+            }
+        } else if (sound_page) {
+            state = 1u + (song.sound_choices[melodic] | (uint32_t)sound_edited(melodic) << 4 | sound_note << 5);
+            if (state != sound_drawn) {
+                sound_drawn = state;
+                draw_sound(melodic, sound_edited(melodic), sound_note);
             }
         } else {
             state = 1u + (shown_bar | selected_notes[melodic] << 4 | roll_lowest_notes[melodic] << 12 | shown_pattern << 20);   /* (a changed step sets roll_drawn to 0) */
@@ -1012,18 +1246,23 @@ static void app_main(void)
             static const char *const GLOBAL_LABELS[KNOB_COUNT] = {"TEMPO", "", "PATTERN", "REVERB"};
             static const char *const SONGS_LABELS[KNOB_COUNT] = {"SONG", "", "", ""};
             static const char *const LIBRARY_LABELS[KNOB_COUNT] = {"PLACE", "", "", ""};
+            static const char *const SYNTH_SOUND_LABELS[KNOB_COUNT] = {"WAVE", "RESO", "ATTACK", "ENV"};
+            static const char *const PAD_SOUND_LABELS[KNOB_COUNT] = {"SPREAD", "RESO", "ATTACK", "RELEASE"};
             const int pad_shown = page == MELODIC_FIRST_PAGE + MELODIC_PAD;
             const uint32_t melodic_values[KNOB_COUNT] = {selected_notes[melodic], song.cutoff[melodic],
                                                          pad_shown ? selected_major : song.decay[melodic], song.echo[melodic]};
             const uint32_t global_values[KNOB_COUNT] = {song.tempo, 0u, shown_pattern, song.reverb};
-            const char *label = page == PAGE_SONGS ? SONGS_LABELS[knob] : page == PAGE_LIBRARY ? LIBRARY_LABELS[knob] : page == PAGE_GLOBAL ? GLOBAL_LABELS[knob] : page == PAGE_DRUMS ? ""   /* (the selected drum's row is orange: that says it) */
+            const int wave_shown = sound_page && !pad_shown && knob == 0u;   /* (a word: small) */
+            const char *label = sound_page ? (pad_shown ? PAD_SOUND_LABELS[knob] : SYNTH_SOUND_LABELS[knob]) : page == PAGE_SONGS ? SONGS_LABELS[knob] : page == PAGE_LIBRARY ? LIBRARY_LABELS[knob] : page == PAGE_GLOBAL ? GLOBAL_LABELS[knob] : page == PAGE_DRUMS ? ""   /* (the selected drum's row is orange: that says it) */
                               : pad_shown ? PAD_LABELS[knob] : MELODIC_LABELS[knob];
-            uint32_t value = page == PAGE_SONGS ? (knob ? 0u : selected_place) : page == PAGE_LIBRARY ? (knob ? 0u : selected_library_place + 1u) : page == PAGE_GLOBAL ? global_values[knob]
+            uint32_t value = sound_page ? song.sounds[melodic][knob] : page == PAGE_SONGS ? (knob ? 0u : selected_place) : page == PAGE_LIBRARY ? (knob ? 0u : selected_library_place + 1u) : page == PAGE_GLOBAL ? global_values[knob]
                            : page == PAGE_DRUMS ? 0u : melodic_values[knob];
             if (1u + value != knob_drawn[knob]) {
                 char number[8];
                 const char *text = number;
                 if (!label[0]) text = "";
+                else if (wave_shown) text = WAVE_NAMES[value];
+                else if (sound_page) format_number(number, value);
                 else if (page == PAGE_SONGS) text = PLACE_NAMES[value];
                 else if (page == PAGE_LIBRARY) format_number(number, value);
                 else if (page != PAGE_GLOBAL && knob == 0u) format_note(number, value);
@@ -1031,8 +1270,13 @@ static void app_main(void)
                 else if (page == PAGE_GLOBAL && knob == 2u) pattern_name(number, value);
                 else format_number(number, value);
                 knob_drawn[knob] = 1u + value;
-                draw_knob(knob, label, text, page == PAGE_SONGS ? value >= PLACE_FIRST_KEPT : page != PAGE_DRUMS);
+                draw_knob(knob, label, text, wave_shown ? 0 : page == PAGE_SONGS ? value >= PLACE_FIRST_KEPT : page != PAGE_DRUMS);
             }
+        }
+
+        if (page == PAGE_DRUMS && 1u + selected_drum / DRUMS_PER_PAGE != drum_pages_drawn) {   /* (after the knobs: over their empty places) */
+            drum_pages_drawn = 1u + selected_drum / DRUMS_PER_PAGE;
+            draw_drum_pages(selected_drum / DRUMS_PER_PAGE);
         }
 
         if (place_to_save < PLACE_COUNT && !playing && sound_quiet()) {   /* (as below: only when stopped and silent) */
@@ -1041,6 +1285,10 @@ static void app_main(void)
                 if (songs_note == SONGS_NOTE_SAVING) songs_note = SONGS_NOTE_SAVED;
             }
             place_to_save = PLACE_COUNT;
+        }
+        if (user_sounds_unsaved && !playing && sound_quiet()) {   /* (a slot: four sectors erased, ~200 ms) */
+            user_sounds_unsaved = 0;
+            slot_save(USER_SOUNDS_SLOT, user_sounds, sizeof user_sounds);
         }
         if (library_unsaved && !playing && sound_quiet()) {   /* (a slot: four sectors erased, ~200 ms) */
             library_unsaved = 0;

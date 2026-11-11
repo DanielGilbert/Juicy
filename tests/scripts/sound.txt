@@ -1,0 +1,42 @@
+# The sound page (FX): a named sound picked with ALGORITHM, changed (a * at its name), kept as USER1, picked again;
+# the pad's SLOW swells in where WARM is there at once (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/sound.txt
+# HOME: to the drums. SEL, OP2, EDIT: the bass, EDIT on. FX: its sound page, PLUCK
+5 btn 8
+100 btn 3
+120 keys 0x8
+140 keys 0
+160 btn 6
+200 btn 2
+400 shot
+# ALGORITHM two on: ACID. The leftmost key plays F1 with it (the keys play on a sound page, EDIT or not)
+500 enc 1 2
+700 shot
+800 keys 0x1
+1300 keys 0
+# KNOB2: RESO up by 5: ACID*
+1500 enc 3 5
+1700 shot
+# SEQ asks, SEQ again: kept as USER1 (slot 1, once it is quiet)
+1800 btn 11
+1900 shot
+2000 btn 11
+2200 shot
+# ALGORITHM back to PLUCK, then on to USER1: ACID's sound with RESO 97, no *
+2400 enc 1 -4
+2500 enc 1 4
+2700 shot
+# SEL, OP4, EDIT: the pad's sound page. ALGORITHM two on: SLOW. Its leftmost key (F2) held 3.5 s: it swells in
+3000 btn 3
+3020 keys 0x100
+3040 keys 0
+3060 btn 6
+3200 enc 1 2
+3400 shot
+3500 keys 0x1
+7000 keys 0
+# ALGORITHM back to WARM: the same key, there in 150 ms
+9500 enc 1 -2
+10000 keys 0x1
+11500 keys 0
+14000 end

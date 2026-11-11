@@ -72,7 +72,8 @@ static void fm1_led_key_glow(uint32_t id, int on)   /* as fm1_led_key, the dim l
             }
 }
 #ifndef FM1_GLOW_BRIGHT_NS
-#define FM1_GLOW_BRIGHT_NS 10000u               /* the brighter glow's pulse a frame (ns): 2.5 times FM1_GLOW_NS */
+#define FM1_GLOW_BRIGHT_NS 32000u               /* the brighter glow's pulse a frame (ns): 8 times FM1_GLOW_NS, ~1/3 of a lit LED
+                                                 * (the input tick waits for it: at most 65535, fm1_led_bg_ns is 16 bits) */
 #endif
 static void fm1_led_key_glow_bright(uint32_t id, int on)   /* a glow that stands out among the glowing: the backlight layer, where the key does not glow */
 {

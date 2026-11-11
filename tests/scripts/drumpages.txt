@@ -1,0 +1,28 @@
+# The six drums on two pages of three: the 4th to 6th lower key play OPEN HAT, SNARE, TOM and show their page;
+# with EDIT on KNOB1 walks through all six; the hat cuts the open hat off (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/drumpages.txt
+# HOME: to the drums, page 1. Lower keys 6, 7, 9 (the 4th to 6th): OPEN HAT, SNARE, TOM, each 500 ms apart
+5 btn 8
+300 shot
+500 keys 0x40
+550 keys 0
+1000 keys 0x80
+1050 keys 0
+1500 keys 0x200
+1550 keys 0
+1900 shot
+# the open hat, the hat 50 ms later: the open hat is gone with it
+2500 keys 0x40
+2550 keys 0
+2600 keys 0x4
+2650 keys 0
+# the hat was hit last: HAT is selected, page 1. EDIT, KNOB1 one back: KICK. KNOB1 four on: SNARE, page 2, and a
+# snare on its step 1
+3000 btn 6
+3100 enc 2 -1
+3300 shot
+3400 enc 2 4
+3500 keys 0x1
+3550 keys 0
+3800 shot
+4500 end
