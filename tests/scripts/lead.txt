@@ -1,0 +1,24 @@
+# The lead track: its page, the first song's four notes, a note placed, a note by hand that rings on
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/lead.txt
+# One bar at 138 BPM is 1739 ms: the bars start at 100, 1839 and 3578, a step is 109 ms.
+# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+20 btn 11
+40 btn 7
+60 enc 3 -3
+80 btn 7
+100 btn 12
+# OP5: the lead track
+300 keys 0x400
+350 keys 0
+900 shot
+# KNOB1 ten notes up (G5, 784 Hz), put on step 3 (lower key 4): it sounds at 2056 and 3795
+1000 enc 2 10
+1300 keys 0x10
+1350 keys 0
+3000 shot
+5500 btn 12
+# stopped: B5 (988 Hz) by hand is let go after 200 ms and rings on as DECAY says
+7000 enc 2 4
+7600 shot
+14000 end

@@ -1,0 +1,24 @@
+# The pad track: its page, the first song's A minor chord, a major chord placed further on in the bar
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/pad.txt
+# One bar at 138 BPM is 1739 ms: the bars start at 100, 1839 and 3578, step 5 of a bar 435 ms later.
+# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+20 btn 11
+40 btn 7
+60 enc 3 -3
+80 btn 7
+100 btn 12
+# OP4: the pad track
+300 keys 0x100
+350 keys 0
+900 shot
+# KNOB1 one note up (A#3), KNOB3: major. Each is heard for a moment, then the pattern's chord is back
+1000 enc 2 1
+1100 enc 4 1
+1250 shot
+# put on step 5 (lower key 7): A#3 D4 F4 sounds from 2274 until the bar starts again
+1300 keys 0x80
+1350 keys 0
+3000 shot
+5500 btn 12
+12000 end

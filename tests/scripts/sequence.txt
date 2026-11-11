@@ -1,0 +1,24 @@
+# The sequence track: its page, the first song's arpeggio, a note placed above what the roll shows
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/sequence.txt
+# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+20 btn 11
+40 btn 7
+60 enc 3 -3
+80 btn 7
+100 btn 12
+# OP3: the sequence track
+300 keys 0x20
+350 keys 0
+900 shot
+# KNOB1 twelve notes up (C5): the roll follows. Put on step 1 (lower key 0)
+1000 enc 2 12
+1900 keys 0x1
+1950 keys 0
+2500 shot
+# KNOB2: the filter further open; KNOB3: a longer decay
+2600 enc 3 20
+2700 enc 4 30
+3600 shot
+5500 btn 12
+12000 end

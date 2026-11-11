@@ -1,0 +1,15 @@
+# The chain: the first song plays its patterns in the chain's order, then pattern A alone goes round
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/chain.txt
+# GLO: the page for the whole song, with the chain C D B A B A E D A A C
+300 btn 7
+800 shot
+# PLAY. Four bars at 138 BPM are 6957 ms: C (no drums) 1000..7957, D (kick and hat) 7957..14913
+1000 btn 12
+3000 shot
+9000 shot
+# SEQ: the chain off. When D ends at 14913, pattern A (on the screen) starts, not B: its lead is there
+9500 btn 11
+16500 shot
+17000 btn 12
+24000 end

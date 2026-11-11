@@ -1,0 +1,14 @@
+# The echo: a note by hand on the sequence track comes back every three steps (326 ms at 138 BPM), a bit over
+# half as loud each time; with ECHO at 0 it does not (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/echo.txt
+# OP3: the sequence track
+300 keys 0x20
+350 keys 0
+# KNOB1 one note up (C#4, 277 Hz): it sounds for 200 ms, the first song sends 40 of 100 into the echo
+1000 enc 2 1
+1500 shot
+# KNOB4: ECHO down to 0, then the next note (D4, 294 Hz)
+4000 enc 5 -40
+5000 enc 2 1
+5500 shot
+9000 end

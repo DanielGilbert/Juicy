@@ -1,19 +1,34 @@
-# The drum track: play the first beat, change it while it runs, stop (tests/host.c says what a line can do).
+# The drum track: play the first song, add a second bar and fill it while it runs, take it away again, stop
+# (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/drums.txt
+# One bar at 138 BPM is 1739 ms: bar 1 plays 100..1839, bar 2 1839..3578, bar 1 again from 3578.
+# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+20 btn 11
+40 btn 7
+60 enc 3 -3
+80 btn 7
 100 btn 12
-# one bar at 138 BPM is 1739 ms: the screen in the middle of bar 1
 900 shot
-# OP2 selects the hat; steps 1 and 9 added to it (lower keys 0 and 14)
-2000 keys 0x8
-2050 keys 0
-2100 keys 0x1
-2150 keys 0
-2200 keys 0x4000
-2250 keys 0
-# faster: KNOB1 up by 12
-3600 enc 2 12
+# GLO, KNOB2: two bars, GLO: back. OCT+: bar 2 on the screen. The kick's steps 1, 2 and 3 flipped (lower keys 0, 2 and 4)
+950 btn 7
+1000 enc 3 1
+1050 btn 7
+1100 btn 1
+1200 keys 0x1
+1250 keys 0
+1300 keys 0x4
+1350 keys 0
+1400 keys 0x10
+1450 keys 0
+# bar 2 sounds and is on the screen
+2500 shot
+# bar 1 sounds, bar 2 is on the screen: no step is marked, the mark is under the first bar's box
 4000 shot
+# GLO, KNOB2 back to one bar: the screen follows to bar 1
+4150 btn 7
+4200 enc 3 -1
+4250 btn 7
+4400 shot
 5500 btn 12
-5600 shot
-# stopped and silent for 2 s: the pattern is saved
-8200 end
+# stopped, the echoes gone and silent for 2 s: the song is saved
+12000 end

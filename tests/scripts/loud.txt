@@ -1,0 +1,23 @@
+# As loud as the three tracks get: the bass on the kick's steps too, both filters open, long decays
+# (tests/host.c says what a line can do). Built with -DLIMITER_CEILING=12000 it shows the limiter at work.
+#   tests/run_host.sh tests/scripts/loud.txt
+# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+20 btn 11
+40 btn 7
+60 enc 3 -3
+80 btn 7
+# OP2: the bass track. A1 on steps 1, 5, 9 and 13 (lower keys 0, 7, 14 and 21), CUTOFF and DECAY up
+300 keys 0x8
+350 keys 0
+400 keys 0x204081
+450 keys 0
+500 enc 3 55
+550 enc 4 60
+# OP3: the sequence track, CUTOFF and DECAY up
+600 keys 0x20
+650 keys 0
+700 enc 3 50
+750 enc 4 40
+1000 btn 12
+4500 btn 12
+11000 end
