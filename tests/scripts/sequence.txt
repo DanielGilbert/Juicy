@@ -1,13 +1,13 @@
 # The sequence track: its page, the first song's arpeggio, a note placed above what the roll shows
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/sequence.txt
-# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+# SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
 10 btn 6
 20 btn 11
-40 btn 7
+40 btn 8
 60 enc 3 -3
-80 btn 7
+80 btn 8
 100 btn 12
 # OP3: the sequence track
 290 btn 3

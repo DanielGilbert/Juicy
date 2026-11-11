@@ -2,13 +2,13 @@
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/lead.txt
 # One bar at 138 BPM is 1739 ms: the bars start at 100, 1839 and 3578, a step is 109 ms.
-# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+# SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
 10 btn 6
 20 btn 11
-40 btn 7
+40 btn 8
 60 enc 3 -3
-80 btn 7
+80 btn 8
 100 btn 12
 # OP5: the lead track
 290 btn 3

@@ -1,13 +1,13 @@
-# The bass track: its page, a note placed and moved, the filter, the page behind GLO (tests/host.c says what a line can do).
+# The bass track: its page, a note placed and moved, the filter, the page behind HOME (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/bass.txt
 # The first song has the bass on steps 3, 7, 11 and 15 (A1). One step at 138 BPM is 109 ms.
-# SEQ: the chain off, pattern A alone. GLO, KNOB2: only its first bar, GLO
+# SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
 10 btn 6
 20 btn 11
-40 btn 7
+40 btn 8
 60 enc 3 -3
-80 btn 7
+80 btn 8
 100 btn 12
 # OP2: the bass track
 290 btn 3
@@ -24,8 +24,8 @@
 2600 enc 3 55
 2700 enc 4 60
 3600 shot
-# GLO: the page for the whole pattern, the tempo up by 2
-3700 btn 7
+# HOME: the page for the whole pattern, the tempo up by 2
+3700 btn 8
 3800 enc 2 2
 4100 shot
 # back to the drums (OP1), their third drum

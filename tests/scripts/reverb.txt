@@ -8,15 +8,15 @@
 360 btn 3
 400 enc 5 -40
 1000 enc 2 1
-# GLO, KNOB4: REVERB from 35 to 100, GLO. The next note (D4)
-4000 btn 7
+# HOME, KNOB4: REVERB from 35 to 100, HOME. The next note (D4)
+4000 btn 8
 4100 enc 5 65
 4200 shot
-4300 btn 7
+4300 btn 8
 5000 enc 2 1
-# GLO, KNOB4: REVERB to 0, GLO. The next note (D#4)
-8000 btn 7
+# HOME, KNOB4: REVERB to 0, HOME. The next note (D#4)
+8000 btn 8
 8100 enc 5 -100
-8300 btn 7
+8300 btn 8
 9000 enc 2 1
 13000 end

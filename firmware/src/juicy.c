@@ -5,14 +5,19 @@
  * three steps long that all but the drums can send into, a reverb for SEQUENCE, PAD, LEAD and the echo, and a
  * limiter over all of it.
  *
- *   OP1 .. OP5   (the first five upper keys) the track on the screen: DRUMS, BASS, SEQUENCE, PAD, LEAD
- *   lower keys   the 16 steps of the bar on the screen: a press puts what the knobs show there (a hit of that
- *                drum, that note, that chord), or takes it away again
- *   KNOB1..4     what the four places along the bottom of the screen say, and nothing else
+ *   the keys     play: on DRUMS the lower keys from the left are the drums, on the other tracks all 27 keys are
+ *                notes (the pad's: the chord on that note). Nothing of it goes into the pattern, but what was
+ *                played last is what EDIT puts there
+ *   SEL          (lit) OP1 .. OP5, the first five upper keys, pick the track on the screen: DRUMS, BASS,
+ *                SEQUENCE, PAD, LEAD. SEL again: the keys are as before
+ *   EDIT         (lit, the page's name orange) the lower keys are the 16 steps of the bar on the screen: a press
+ *                puts what was played or what the knobs show there (a hit of that drum, that note, that chord),
+ *                or takes it away again
+ *   KNOB1..4     what the four places along the bottom of the screen say; on DRUMS KNOB1 moves the orange row
  *   OCT- OCT+    the bar on the screen: the one before, the next one
- *   GLO          the page for the whole song: TEMPO, the BARS of the pattern, the PATTERN on the screen, REVERB,
- *                and the chain, where the lower keys are its 16 places (GLO again: back to the track)
- *   EDIT         on GLO's page: a copy of the pattern on the screen, in the first empty pattern
+ *   HOME         the page for the whole song: TEMPO, the BARS of the pattern, the PATTERN on the screen, REVERB,
+ *                and the chain, where with EDIT on the lower keys are its 16 places (HOME again: back to the track)
+ *   REC          on HOME's page: a copy of the pattern on the screen, in the first empty pattern
  *   SEQ          what plays: the chain (lit), or the pattern on the screen, round and round
  *   PLAY         start and stop
  *
@@ -332,7 +337,7 @@ static void app_audio(int32_t *out, uint32_t frame_count)
 #define NO_STEP STEPS_PER_BAR
 #define NO_BAR BAR_COUNT
 
-/* a page per track, and the one behind GLO. A melodic track's page is MELODIC_FIRST_PAGE + its number */
+/* a page per track, and the one behind HOME. A melodic track's page is MELODIC_FIRST_PAGE + its number */
 enum { PAGE_DRUMS, MELODIC_FIRST_PAGE, TRACK_COUNT = MELODIC_FIRST_PAGE + MELODIC_COUNT, PAGE_GLOBAL = TRACK_COUNT };
 
 static const char *const PAGE_NAMES[] = {"DRUMS", "BASS", "SEQUENCE", "PAD", "LEAD", "GLOBAL"};
@@ -510,7 +515,7 @@ static void app_main(void)
     for (step = 0; step < CHAIN_SLOTS; step++)   /* a song with a chain starts with the chain on */
         if (song.chain[step]) chain_on = 1;
     fm1_led_key_glow(BTN_PLAY, 1);              /* what always does something glows */
-    fm1_led_key_glow(BTN_GLO, 1);
+    fm1_led_key_glow(BTN_HOME, 1);
     fm1_led_key_glow(BTN_SEQ, 1);
     fm1_led_key_glow(BTN_SEL, 1);
     fm1_led_key_glow(BTN_EDIT, 1);
@@ -531,7 +536,7 @@ static void app_main(void)
             detents[knob] = fm1_enc_take(ENC_KNOB1 + knob);
 
         if (buttons_pressed & (1u << BTN_PLAY)) playing = !playing;
-        if (buttons_pressed & (1u << BTN_GLO)) global_shown = !global_shown;
+        if (buttons_pressed & (1u << BTN_HOME)) global_shown = !global_shown;
         if (buttons_pressed & (1u << BTN_SEQ)) chain_on = !chain_on;
         if (buttons_pressed & (1u << BTN_SEL)) select_on = !select_on;
         if (buttons_pressed & (1u << BTN_EDIT)) edit_on = !edit_on;
@@ -671,7 +676,7 @@ static void app_main(void)
             fm1_led_key(KEY_LED(key), keys_lit >> key & 1u);
         }
         fm1_led_key(BTN_PLAY, playing != 0);
-        fm1_led_key(BTN_GLO, global_shown != 0);
+        fm1_led_key(BTN_HOME, global_shown != 0);
         fm1_led_key(BTN_SEQ, chain_on != 0);
         fm1_led_key(BTN_SEL, select_on != 0);
         fm1_led_key(BTN_EDIT, edit_on != 0);
