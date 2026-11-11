@@ -28,9 +28,11 @@ the screen.
 - **Sounds:** every melodic track has named sounds (BASS: PLUCK, SUB, ACID, REESE; SEQUENCE: PLUCK, SQUARE, SAW,
   SOFT; PAD: WARM, BRIGHT, SLOW; LEAD: SUPERSAW, SQUARE, SOFT), a page of knobs to shape them, and two places of
   your own (USER1, USER2) that every song can use.
-- **Echo and reverb:** a tempo-synced echo per track, a reverb over the whole song, a limiter that keeps it clean.
+- **A mixer:** each track's level (each drum's), pan, and how much goes into the tempo-synced echo and the reverb;
+  a limiter keeps the sum clean.
 - **Mutes** for jamming: drop a track out and bring it back while the song plays.
-- **8 songs, a library of 16 patterns,** and the song you work on saves itself.
+- **Three demo songs** (eurodance, uplifting trance, ambient), **8 songs** of your own, **a library of 16 patterns,**
+  and the song you work on saves itself.
 - **The keys light up** where they do something, so you can see what the panel does on each screen.
 
 ## Install
@@ -56,7 +58,8 @@ firmware installs again. Installing firmware is at your own risk.
 3. Play a note you like, then press **EDIT** (the title turns orange): the 16 lower keys are the 16 steps of the bar
    on the screen. A key puts the note you played last on that step, or takes it away.
 4. **OCT+** goes to the next bar. On the last bar, with EDIT on, it adds a bar.
-5. **FX** opens the bass's sound page. Turn **ALGORITHM** for another sound, the four knobs to shape it.
+5. **FX** opens the bass's sound page. Turn **ALGORITHM** for another sound, the four knobs to shape it. **FX**
+   again: its mix (level, pan, reverb, echo).
 6. **SEL**, then the black key one octave above OP1, mutes the drums. Again: they're back.
 
 ## The panel
@@ -77,13 +80,13 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | **PLAY** | start and stop (any time) |
 | **HOME** | the JUICY screen, and back to the track |
 | **SAVE** | the SONGS screen, again the LIBRARY, again back |
-| **FX** | on BASS, SEQUENCE, PAD, LEAD: the track's sound page, and back to its notes |
+| **FX** | a track's pages in turn: its notes, its sound (not DRUMS), its mix |
 | **OCT- / OCT+** | the bar before / the next bar. With EDIT on a track: OCT+ past the last bar adds one (up to 4), **holding OCT-** removes the bar on the screen from that track |
 | **PRESETS** (knob) | the pattern on the screen, A to H, on every screen |
 | **SEQ** | with EDIT: the chain on or off (lit: the chain plays; dark: the pattern on the screen loops) |
 | **REC** | on JUICY with EDIT: copies the pattern on the screen into the first empty one |
 | **ALGORITHM** (knob) | on a sound page with EDIT: the next or previous sound |
-| **MASTER** (knob) | the volume |
+| **MASTER** (knob) | the volume of the FM-1 itself. Over USB the FM-1 is also a sound card that a computer or phone records from, always at full level: turn MASTER down to record with a silent FM-1 |
 
 ### The screens
 
@@ -91,17 +94,29 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | --- | --- | --- | --- | --- | --- |
 | **JUICY** | TEMPO | | PATTERN | REVERB | the chain: with EDIT a lower key puts the pattern on the screen in that place, or takes it out |
 | **DRUMS** | the drum the keys edit (the orange row) | | | | three drums at a time; the marks at the bottom say which page |
-| **BASS, SEQUENCE, LEAD** | NOTE | CUTOFF | DECAY | ECHO | a piano roll of the bar on the screen |
-| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD (minor, major) | ECHO | |
+| **BASS, SEQUENCE, LEAD** | NOTE | CUTOFF | DECAY | | a piano roll of the bar on the screen |
+| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD (minor, major) | | |
 | **Sound page** (FX) | WAVE | RESO | ATTACK | ENV | the pad's: SPREAD, RESO, ATTACK, RELEASE. A `*` after the name: changed. With EDIT, **SEQ** keeps the sound as USER1, **REC** as USER2 (each asks twice). The keys always play here |
-| **SONGS** (SAVE) | DEMO, NEW (empty), 1 to 8 | | | | **SEQ** loads (asks twice), **REC** saves your song there (twice over a song). No EDIT needed; only while stopped |
+| **Mix page** (FX) | LEVEL (DRUMS: the selected drum's, the orange row) | PAN | REVERB | ECHO | bars for each; on DRUMS one per drum. The keys always play here (on DRUMS: a key picks the drum) |
+| **SONGS** (SAVE) | DEMO1 to DEMO3, NEW (empty), 1 to 8 | | | | **SEQ** loads (asks twice), **REC** saves your song there (twice over a song). No EDIT needed; only while stopped |
 | **LIBRARY** (SAVE twice) | place 1 to 16 (or a lower key) | | | | **SEQ** puts that pattern into the pattern on the screen (twice if that holds something; works while playing), **REC** stores the pattern on the screen there (while stopped). A library pattern is notes and hits only, it plays with the song's sounds |
 
 ### The lights
 
 A key or button that does something on this screen **glows** dimly; one that is on, selected or holds something
 (a set step, a used chain place) is **lit**. With EDIT on a track, the steps 1, 5, 9 and 13 glow brighter: the beats.
-PLAY flashes on every beat while the song plays. A muted track's name is dark on its screen.
+PLAY flashes on every beat while the song plays. On the JUICY screen, with SEL and EDIT off, the keys follow the
+song while it plays: the lower key of the step that sounds is lit, and OP1 to OP4 show the bars of the playing
+pattern (glowing), the one that sounds lit. A muted track's name is dark on its screen.
+
+## MIDI and USB
+
+- **Following a clock:** when MIDI clock comes in (USB or the TRS jack), Juicy follows its tempo; the JUICY screen
+  shows **EXT** and the tempo it measures. START plays from the top, CONTINUE plays on from where Juicy stopped,
+  STOP stops. Juicy starts on the first clock after START or CONTINUE.
+- **Leading:** without an incoming clock, PLAY sends START and STOP over USB, and Juicy sends the clock while it plays,
+  so a DAW can follow it.
+- **Recording:** over USB the FM-1 is a sound card (a line input to the computer), always at full level.
 
 ## What is kept
 

@@ -1,0 +1,16 @@
+# Juicy follows a clock: 120 BPM from 0 (as a DAW sends it before it starts), START at 990: Juicy plays from the
+# next clock (1000), pattern A alone (the chain off), its kick on every quarter: 1000, 1500, 2000 ... HOME's page
+# says EXT 120. STOP at 9000, CONTINUE at 11010: on from where it stopped, from the next clock (11021), in step
+# with it again (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/clockin.txt
+# EDIT, SEQ: the chain off. EDIT again: off
+1 clock 120 1056
+10 btn 6
+20 btn 11
+30 btn 6
+990 midi 0xFA 0 0
+3000 shot
+9000 midi 0xFC 0 0
+11010 midi 0xFB 0 0
+15000 midi 0xFC 0 0
+16500 end

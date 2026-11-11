@@ -48,10 +48,8 @@ static void pad_chord_off(void) { pad.held = 0; }
 
 static int pad_quiet(void) { return !pad.held && !pad.level; }
 
-/* adds to out (L R L R ...), and send_gain / 512 of it to send (one value a frame); cutoff, resonance, attack and
- * release 0..SYNTH_PARAMETER_MAX */
-static void pad_render(int32_t *out, int32_t *send, uint32_t frame_count, uint32_t cutoff, int32_t send_gain,
-                       uint32_t resonance, uint32_t attack, uint32_t release)
+/* adds to out (mono, a value a frame); cutoff, resonance, attack and release 0..SYNTH_PARAMETER_MAX */
+static void pad_render(int32_t *out, uint32_t frame_count, uint32_t cutoff, uint32_t resonance, uint32_t attack, uint32_t release)
 {
     int32_t filter_frequency = SYNTH_CUTOFF[cutoff], damping = SYNTH_DAMPING[resonance];
     int32_t attack_step = (int32_t)PAD_LEVEL_STEP[attack], release_step = (int32_t)PAD_LEVEL_STEP[release];
@@ -76,8 +74,6 @@ static void pad_render(int32_t *out, int32_t *send, uint32_t frame_count, uint32
         pad.band += (filter_frequency * high) >> 15;
         sample = (pad.low * (pad.level >> 9)) >> 15;
         sample = (sample * PAD_GAIN) >> 15;
-        out[2u * i] += sample;
-        out[2u * i + 1u] += sample;
-        send[i] += (sample * send_gain) >> 9;
+        out[i] += sample;
     }
 }

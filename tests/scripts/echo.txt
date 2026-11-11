@@ -13,8 +13,11 @@
 # KNOB1 one note up (C#4, 277 Hz): it sounds for 200 ms, the first song sends 40 of 100 into the echo
 1000 enc 2 1
 1500 shot
-# KNOB4: ECHO down to 0, then the next note (D4, 294 Hz)
+# FX twice: the mix page, KNOB4: ECHO down to 0, FX: the notes again. Then the next note (D4, 294 Hz)
+3900 btn 2
+3920 btn 2
 4000 enc 5 -40
+4100 btn 2
 5000 enc 2 1
 5500 shot
 9000 end

@@ -375,7 +375,8 @@ void fm1_timer5_irq(void)
 }
 extern void isr_timer5(void);
 
-/* ---- the sound: ALNK0 I2S, two halves; the app renders, the MASTER knob scales, Q15 -> 24 bit (-6 dBFS ceiling) */
+/* ---- the sound: ALNK0 I2S, two halves; the app renders, the USB audio gets it as it is, the MASTER knob scales what
+ * the FM-1 plays, Q15 -> 24 bit (-6 dBFS ceiling) */
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
 static volatile int32_t master_q12 = 2048;
 static void app_audio(int32_t *out, uint32_t n);
@@ -394,14 +395,14 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             o[i] = 0;
         UAC_ONLY(uac_render_start());
         app_audio(o, HALF_FRAMES);
-        for (i = 0; i < HALF_WORDS; i++) {
-            int32_t v = (o[i] * master_q12) >> 12;
-            o[i] = v > 32767 ? 32767 : v < -32767 ? -32767 : v;
-        }
-        for (b = 0; b < HALF_FRAMES; b += 32u)
-            UAC_ONLY(uac_tap(o + 2u * b, 32u));   /* the computer records what the speaker plays */
         for (i = 0; i < HALF_WORDS; i++)
-            o[i] <<= 7;
+            o[i] = o[i] > 32767 ? 32767 : o[i] < -32767 ? -32767 : o[i];
+        for (b = 0; b < HALF_FRAMES; b += 32u)
+            UAC_ONLY(uac_tap(o + 2u * b, 32u));   /* the computer records what the app plays, at full level: */
+        for (i = 0; i < HALF_WORDS; i++) {        /* the MASTER knob is the speaker's (MASTER down: a silent FM-1 that still records) */
+            int32_t v = (o[i] * master_q12) >> 12;
+            o[i] = (v > 32767 ? 32767 : v < -32767 ? -32767 : v) << 7;
+        }
         fm1_audio_ack_half();
     }
     in_audio = 0;

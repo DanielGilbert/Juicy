@@ -23,17 +23,17 @@ static uint32_t reverb_quiet_frames = REVERB_QUIET_FRAMES;   /* how long nothing
 
 static int reverb_quiet(void) { return reverb_quiet_frames >= REVERB_QUIET_FRAMES; }
 
-/* in and out are L R L R ...; adds the reverb of in (its left) to out. amount 0..100 */
+/* in is mono (a value a frame), out L R L R ...; adds the reverb of in to out. amount 0..100 */
 static void reverb_render(int32_t *out, const int32_t *in, uint32_t frame_count, uint32_t amount)
 {
     int32_t send_gain = (int32_t)(amount * 5u);
     uint32_t i, comb, channel, allpass;
     if (reverb_quiet()) {                       /* nothing in the room: is anything coming in? */
-        for (i = 0; i < frame_count && !((in[2u * i] * send_gain) >> REVERB_SEND_SHIFT); i++) {}
+        for (i = 0; i < frame_count && !((in[i] * send_gain) >> REVERB_SEND_SHIFT); i++) {}
         if (i == frame_count) return;
     }
     for (i = 0; i < frame_count; i++) {
-        int32_t sent = (in[2u * i] * send_gain) >> REVERB_SEND_SHIFT, room = 0;
+        int32_t sent = (in[i] * send_gain) >> REVERB_SEND_SHIFT, room = 0;
         for (comb = 0; comb < REVERB_COMB_COUNT; comb++) {
             int32_t *place = &reverb_comb_lines[comb][reverb_comb_positions[comb]];
             int32_t round = *place;

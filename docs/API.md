@@ -151,7 +151,8 @@ static void app_audio(int32_t *out, uint32_t n)
 
 - Runs in the audio interrupt, every 5.8 ms, with `n` = 256 frames at **44.1 kHz** (`FS`).
 - `out` is `L R L R ...`, **already zero**: add your sound to it. Full scale is **±32767** (Q15); more is clipped.
-- After you: the MASTER knob, the clip, the USB audio stream (the computer records exactly this), the DAC.
+- After you: the clip, the USB audio stream (the computer records exactly this, at full level), then the MASTER
+  knob and the DAC (Juicy: MASTER sets only what the FM-1 itself plays).
   The DAC gets it 6 dB under its full scale, so the FM-1's output stage does not distort.
 - Keep it fast and simple: no flash, no screen, no waiting. Talk to the main loop through `volatile` variables
   (one writer each). If a render runs late the sound breaks up; see [RULES.md](RULES.md).

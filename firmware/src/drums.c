@@ -86,7 +86,8 @@ static int drums_quiet(void)
     return !kick.level && !hat.level && !clap.level && !open_hat.level && !snare.tone_level && !snare.noise_level && !tom.level;
 }
 
-static void drums_render(int32_t *out, uint32_t frame_count)   /* adds to out (L R L R ...) */
+/* adds to out (mono, a value a frame); levels: each drum's, Q12 (4096: as it is) */
+static void drums_render(int32_t *out, uint32_t frame_count, const int32_t levels[DRUM_COUNT])
 {
     uint32_t i;
     if (kick.level) {
@@ -95,10 +96,9 @@ static void drums_render(int32_t *out, uint32_t frame_count)   /* adds to out (L
             kick.phase += KICK_BASE_STEP + kick.sweep_step;
             kick.sweep_step -= kick.sweep_step >> KICK_SWEEP_DECAY_SHIFT;
             sample = (sine(kick.phase) * (kick.level >> 8)) >> 15;
-            sample = (sample * KICK_GAIN) >> 15;
+            sample = (((sample * KICK_GAIN) >> 15) * levels[DRUM_KICK]) >> 12;
             kick.level -= kick.level >> KICK_LEVEL_DECAY_SHIFT;
-            out[2u * i] += sample;
-            out[2u * i + 1u] += sample;
+            out[i] += sample;
         }
         if (kick.level < DRUM_LEVEL_SILENT) kick.level = 0;
     }
@@ -107,10 +107,9 @@ static void drums_render(int32_t *out, uint32_t frame_count)   /* adds to out (L
             int32_t noise = drum_noise(), sample;
             sample = (((noise - hat.previous_noise) >> 1) * (hat.level >> 8)) >> 15;   /* the difference: only the highs */
             hat.previous_noise = noise;
-            sample = (sample * HAT_GAIN) >> 15;
+            sample = (((sample * HAT_GAIN) >> 15) * levels[DRUM_HAT]) >> 12;
             hat.level -= hat.level >> HAT_LEVEL_DECAY_SHIFT;
-            out[2u * i] += sample;
-            out[2u * i + 1u] += sample;
+            out[i] += sample;
         }
         if (hat.level < DRUM_LEVEL_SILENT) hat.level = 0;
     }
@@ -125,11 +124,10 @@ static void drums_render(int32_t *out, uint32_t frame_count)   /* adds to out (L
             high = (drum_noise() >> 2) - clap.low - ((CLAP_FILTER_DAMPING * clap.band) >> 15);
             clap.band += (CLAP_FILTER_FREQUENCY * high) >> 15;
             sample = (clap.band * (clap.level >> 8)) >> 15;
-            sample = (sample * CLAP_GAIN) >> 15;
+            sample = (((sample * CLAP_GAIN) >> 15) * levels[DRUM_CLAP]) >> 12;
             clap.level -= clap.level >> (clap.age_frames < CLAP_TAIL_START_FRAME ? CLAP_BURST_DECAY_SHIFT : CLAP_TAIL_DECAY_SHIFT);
             clap.age_frames++;
-            out[2u * i] += sample;
-            out[2u * i + 1u] += sample;
+            out[i] += sample;
         }
         if (clap.age_frames > CLAP_TAIL_START_FRAME && clap.level < DRUM_LEVEL_SILENT) clap.level = 0;
     }
@@ -138,10 +136,9 @@ static void drums_render(int32_t *out, uint32_t frame_count)   /* adds to out (L
             int32_t noise = drum_noise(), sample;
             sample = (((noise - open_hat.previous_noise) >> 1) * (open_hat.level >> 8)) >> 15;
             open_hat.previous_noise = noise;
-            sample = (sample * OPEN_HAT_GAIN) >> 15;
+            sample = (((sample * OPEN_HAT_GAIN) >> 15) * levels[DRUM_OPEN_HAT]) >> 12;
             open_hat.level -= open_hat.level >> (open_hat.choked ? OPEN_HAT_CHOKE_DECAY_SHIFT : OPEN_HAT_LEVEL_DECAY_SHIFT);
-            out[2u * i] += sample;
-            out[2u * i + 1u] += sample;
+            out[i] += sample;
         }
         if (open_hat.level < DRUM_LEVEL_SILENT) open_hat.level = 0;
     }
@@ -151,10 +148,10 @@ static void drums_render(int32_t *out, uint32_t frame_count)   /* adds to out (L
             snare.phase += SNARE_TONE_STEP;
             sample = (((sine(snare.phase) * (snare.tone_level >> 8)) >> 15) * SNARE_TONE_GAIN) >> 15;
             sample += ((((drum_noise() >> 1) * (snare.noise_level >> 8)) >> 15) * SNARE_NOISE_GAIN) >> 15;
+            sample = (sample * levels[DRUM_SNARE]) >> 12;
             snare.tone_level -= snare.tone_level >> SNARE_TONE_DECAY_SHIFT;
             snare.noise_level -= snare.noise_level >> SNARE_NOISE_DECAY_SHIFT;
-            out[2u * i] += sample;
-            out[2u * i + 1u] += sample;
+            out[i] += sample;
         }
         if (snare.tone_level < DRUM_LEVEL_SILENT) snare.tone_level = 0;
         if (snare.noise_level < DRUM_LEVEL_SILENT) snare.noise_level = 0;
@@ -165,10 +162,9 @@ static void drums_render(int32_t *out, uint32_t frame_count)   /* adds to out (L
             tom.phase += TOM_BASE_STEP + tom.sweep_step;
             tom.sweep_step -= tom.sweep_step >> TOM_SWEEP_DECAY_SHIFT;
             sample = (sine(tom.phase) * (tom.level >> 8)) >> 15;
-            sample = (sample * TOM_GAIN) >> 15;
+            sample = (((sample * TOM_GAIN) >> 15) * levels[DRUM_TOM]) >> 12;
             tom.level -= tom.level >> TOM_LEVEL_DECAY_SHIFT;
-            out[2u * i] += sample;
-            out[2u * i + 1u] += sample;
+            out[i] += sample;
         }
         if (tom.level < DRUM_LEVEL_SILENT) tom.level = 0;
     }

@@ -1,0 +1,38 @@
+# The mix page (FX): the bass played by hand in the middle, panned right, at half its level; the drums' page with each
+# drum's level, the kick turned down to nothing (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/mix.txt
+# HOME: to the drums. SEL, OP2, EDIT: the bass. FX twice: its sound page, its mix page
+5 btn 8
+100 btn 3
+120 keys 0x8
+140 keys 0
+160 btn 6
+200 btn 2
+250 btn 2
+400 shot
+# the leftmost key (F1): as loud left as right
+500 keys 0x1
+700 keys 0
+# KNOB2: PAN all the way right (R50): nothing left
+800 enc 3 50
+1000 keys 0x1
+1200 keys 0
+# KNOB1: LEVEL 50: half as loud
+1300 enc 2 -50
+1500 keys 0x1
+1700 keys 0
+1800 shot
+# SEL, OP1, EDIT: the drums, still on the mix page: a row per drum. Its leftmost key: the kick
+2000 btn 3
+2020 keys 0x2
+2040 keys 0
+2060 btn 6
+2200 shot
+2300 keys 0x1
+2350 keys 0
+# KNOB1: the kick's LEVEL to 0: it is not heard
+2600 enc 2 -100
+2700 keys 0x1
+2750 keys 0
+3000 shot
+3500 end

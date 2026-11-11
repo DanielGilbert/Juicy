@@ -1,0 +1,6 @@
+# The start screen: the orange, JUICY, the version; after 2 s HOME's page (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/splash.txt
+# With a film (build/host/juicy OUT tests/scripts/splash.txt 50), its log shows the light running over the keys.
+500 shot
+2400 shot
+2600 end

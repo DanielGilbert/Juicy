@@ -98,10 +98,9 @@ static void synth_note_off(synth_voice_t *voice) { voice->held = 0; }
 
 static int synth_quiet(const synth_voice_t *voice) { return !voice->attacking && !voice->envelope && !voice->amplitude; }
 
-/* adds to out (L R L R ...), and send_gain / 512 of it to send (one value a frame);
- * cutoff and decay 0..SYNTH_PARAMETER_MAX */
-static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32_t *out, int32_t *send, uint32_t frame_count,
-                         uint32_t cutoff, uint32_t decay, int32_t send_gain)
+/* adds to out (mono, a value a frame); cutoff and decay 0..SYNTH_PARAMETER_MAX */
+static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32_t *out, uint32_t frame_count,
+                         uint32_t cutoff, uint32_t decay)
 {
     if (synth_quiet(voice)) return;
     while (frame_count) {
@@ -154,12 +153,9 @@ static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32
             voice->band += (voice->filter_frequency * high) >> 15;
             sample = (voice->low * voice->amplitude) >> 15;
             sample = (sample * shape->gain) >> 15;
-            out[2u * i] += sample;
-            out[2u * i + 1u] += sample;
-            send[i] += (sample * send_gain) >> 9;
+            out[i] += sample;
         }
-        out += 2u * run_frames;
-        send += run_frames;
+        out += run_frames;
         frame_count -= run_frames;
         voice->control_frames_left -= run_frames;
     }
