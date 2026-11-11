@@ -1,7 +1,9 @@
 # What the keys do: they play; between two SELs OP1 .. OP5 pick the page; with EDIT on the lower keys are the steps
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/select.txt
-# KNOB1 on DRUMS: HAT. Nothing is heard
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
+# KNOB1 on DRUMS without EDIT: nothing changes, nothing is heard
 300 enc 2 1
 # the drums by hand: the lower keys 0, 2 and 4 are KICK, HAT and CLAP; CLAP is then the selected drum
 1000 keys 0x1

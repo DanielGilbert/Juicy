@@ -1,6 +1,8 @@
 # The sequence track: its page, the first song's arpeggio, a note placed above what the roll shows
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/sequence.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
 # SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
 10 btn 6

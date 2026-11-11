@@ -1,6 +1,8 @@
 # The pad track: its page, the first song's A minor chord, a major chord placed further on in the bar
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/pad.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
 # One bar at 138 BPM is 1739 ms: the bars start at 100, 1839 and 3578, step 5 of a bar 435 ms later.
 # SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs

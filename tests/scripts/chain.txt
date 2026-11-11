@@ -1,6 +1,10 @@
 # The chain: the first song plays its patterns in the chain's order, then pattern A alone goes round
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/chain.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
+# EDIT: the knobs, SEQ and REC work only with it
+10 btn 6
 # HOME: the page for the whole song, with the chain C D B A B A E D A A C
 300 btn 8
 800 shot

@@ -1,6 +1,10 @@
 # The echo: a note by hand on the sequence track comes back every three steps (326 ms at 138 BPM), a bit over
 # half as loud each time; with ECHO at 0 it does not (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/echo.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
+# EDIT: the knobs, SEQ and REC work only with it
+10 btn 6
 # OP3: the sequence track
 290 btn 3
 300 keys 0x20

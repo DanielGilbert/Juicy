@@ -1,6 +1,8 @@
 # The lead track: its page, the first song's four notes, a note placed, a note by hand that rings on
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/lead.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
 # One bar at 138 BPM is 1739 ms: the bars start at 100, 1839 and 3578, a step is 109 ms.
 # SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs

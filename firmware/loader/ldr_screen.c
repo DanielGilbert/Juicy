@@ -26,7 +26,7 @@
 #define LDR_TAIL LDR_MIX(LDR_COLOUR, LDR_DIM)   /* the waiting light's afterglow: halfway to a segment off */
 
 /* the letters the screens use (others: a space): capitals, digits, % and the hub's address in small letters */
-static const char LDR_CH[] = "ABCDEFGHIKLMNOPRSTUVWXY0123456789%abcefhimortuw.J";
+static const char LDR_CH[] = "ABCDEFGHIKLMNOPRSTUVWXY0123456789%abcefhimortuw.Jdg";
 static const uint8_t LDR_FONT[sizeof LDR_CH - 1u][7] = {         /* rows, bit 4 the left dot */
     {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E},   /* A B */
     {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}, {0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E},   /* C D */
@@ -54,6 +54,7 @@ static const uint8_t LDR_FONT[sizeof LDR_CH - 1u][7] = {         /* rows, bit 4 
     {0x08, 0x08, 0x1C, 0x08, 0x08, 0x09, 0x06}, {0x00, 0x00, 0x11, 0x11, 0x11, 0x13, 0x0D},   /* t u */
     {0x00, 0x00, 0x11, 0x11, 0x15, 0x15, 0x0A}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x0C},   /* w . */
     {0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C},                                               /* J (for JUICY) */
+    {0x01, 0x01, 0x0D, 0x13, 0x11, 0x11, 0x0F}, {0x00, 0x00, 0x0F, 0x11, 0x0F, 0x01, 0x0E},   /* d g (for g5t.de) */
 };
 #define LDR_SEGS 20u                     /* the segments: 9 px and a 2 px gap, 218 px, centred */
 #define LDR_SEG_W 9u
@@ -134,7 +135,7 @@ static void ldr_screen(void)
     ldr_say("UPDATE MODE", "WAITING FOR THE INSTALL");
     for (i = 0; i < LDR_SEGS; i++)
         ldr_seg(i, LDR_DIM);
-    ldr_text(222, 1, LDR_HUB, "thefirmwarehub.com");
+    ldr_text(222, 1, LDR_HUB, "g5t.de");
     lcd_sync();
 }
 static uint32_t ldr_at(uint32_t pos) { return pos < LDR_SEGS ? pos : 2u * LDR_SEGS - 2u - pos; }   /* to and fro */

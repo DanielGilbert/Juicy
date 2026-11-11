@@ -1,0 +1,21 @@
+# A pattern's length where the work is: PRESETS picks the pattern on every page, and with EDIT on OCT+ past the
+# last bar of a track's page gives the pattern one more (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/bars.txt
+# PRESETS five on: pattern F, empty, one bar. HOME's page says "F BARS"
+300 enc 6 5
+600 shot
+# HOME: the drums. OCT+ without EDIT: still one bar
+700 btn 8
+800 btn 1
+1100 shot
+# EDIT, OCT+ twice: three bars, the third on the screen. A kick on its step 1
+1200 btn 6
+1300 btn 1
+1400 btn 1
+1500 keys 0x1
+1550 keys 0
+1800 shot
+# PRESETS five back: pattern A, its four bars; the screen shows its third
+2000 enc 6 -5
+2300 shot
+2500 end

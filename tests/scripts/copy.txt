@@ -1,6 +1,8 @@
 # A copy of a pattern: REC on HOME's page puts pattern A into the first empty pattern, F, and shows it. A change
 # to F leaves A as it was (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/copy.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
 # SEQ: the chain off. HOME, REC: F is on the screen, four bars as A has
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
 10 btn 6

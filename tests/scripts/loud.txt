@@ -1,6 +1,8 @@
 # As loud as the three tracks get: the bass on the kick's steps too, both filters open, long decays
 # (tests/host.c says what a line can do). Built with -DLIMITER_CEILING=12000 it shows the limiter at work.
 #   tests/run_host.sh tests/scripts/loud.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
 # SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
 10 btn 6

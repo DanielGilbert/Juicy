@@ -1,0 +1,33 @@
+# The songs' page behind SAVE: the song saved in place 1, an empty song loaded, the saved one loaded again
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/songs.txt
+# SAVE: the songs' page, place 1 selected, nothing there yet
+300 btn 9
+600 shot
+# REC: the first song is saved there (blob 0)
+700 btn 13
+1100 shot
+# KNOB1 one back: an empty song. SEQ: it asks, SEQ again: loaded, and HOME's page shows a song without a chain
+1200 enc 2 -1
+1400 btn 11
+1600 shot
+1800 btn 11
+2100 shot
+# SAVE, KNOB1 one on: place 1. REC asks, as there is a song there (it is not saved over)
+2300 btn 9
+2400 enc 2 1
+2500 btn 13
+2700 shot
+# KNOB1 on and back: the question is gone. SEQ twice: the first song is back, with its chain
+2800 enc 2 1
+2850 enc 2 -1
+2900 btn 11
+3000 btn 11
+3300 shot
+# PLAY, SAVE, SEQ: not while it plays
+3500 btn 12
+3600 btn 9
+3700 btn 11
+3900 shot
+4000 btn 12
+8000 end

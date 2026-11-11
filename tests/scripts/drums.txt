@@ -1,6 +1,8 @@
 # The drum track: play the first song, add a second bar and fill it while it runs, take it away again, stop
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/drums.txt
+# HOME: from the first page, JUICY, to the drums
+5 btn 8
 # One bar at 138 BPM is 1739 ms: bar 1 plays 100..1839, bar 2 1839..3578, bar 1 again from 3578.
 # SEQ: the chain off, pattern A alone. HOME, KNOB2: only its first bar, HOME
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page between two SELs
