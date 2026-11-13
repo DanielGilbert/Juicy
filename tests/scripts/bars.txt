@@ -2,7 +2,7 @@
 # track's last bar gives it one more, OCT- held takes the bar on the screen out of it; a shorter track goes round
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/bars.txt
-# One bar at 138 BPM is 1739 ms.
+# One bar at 130 BPM is 1846 ms.
 # PRESETS five on: pattern F, empty, one bar on every track. EDIT, SEQ: the chain off, F alone
 300 enc 6 5
 400 btn 6
@@ -27,8 +27,8 @@
 1800 btndown 0
 2700 btnup 0
 2900 shot
-# HOME: the pattern lasts two bars. PLAY at 4000: the kick at 4000, 5739, 7478 (its bar goes round), the bass
-# at 5739 only (its second bar), then again at 9217
+# HOME: the pattern lasts two bars. PLAY at 4000: the kick at 4000, 5846, 7692 (its bar goes round), the bass
+# at 5846 only (its second bar), then again at 9538
 3100 btn 8
 3300 shot
 4000 btn 12

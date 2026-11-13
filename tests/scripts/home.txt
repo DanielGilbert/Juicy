@@ -1,10 +1,10 @@
 # The first page, JUICY: its knobs and SEQ work only with EDIT on (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/home.txt
-# KNOB1, SEQ: the tempo stays at 138, the chain on
+# KNOB1, SEQ: the tempo stays at 130, the chain on
 300 enc 2 5
 400 btn 11
 600 shot
-# EDIT, KNOB1, SEQ: 143, the chain off
+# EDIT, KNOB1, SEQ: 135, the chain off
 800 btn 6
 1000 enc 2 5
 1100 btn 11

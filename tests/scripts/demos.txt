@@ -1,4 +1,4 @@
-# The demo songs on the songs' page: DEMO2 (uplifting) loaded and played, then DEMO3 (ambient)
+# The demo songs on the songs' page: DEMO2 (uplifting) loaded and played, then DEMO3 (lo-fi)
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/demos.txt
 # SAVE: the songs' page, place 1 selected. KNOB1 three back: DEMO2. SEQ twice: loaded, HOME's page, 138 BPM
@@ -11,7 +11,7 @@
 # PLAY: its intro (kick, hats, the galloping bass)
 1200 btn 12
 3200 btn 12
-# SAVE, KNOB1 one on: DEMO3. SEQ twice: loaded, 90 BPM. PLAY: pad and arpeggio
+# SAVE, KNOB1 one on: DEMO3. SEQ twice: loaded, 84 BPM. PLAY: pad and arpeggio
 3500 btn 9
 3600 enc 2 1
 3800 shot

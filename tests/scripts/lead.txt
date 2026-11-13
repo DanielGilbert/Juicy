@@ -1,10 +1,10 @@
-# The lead track: its page, the first song's four notes, a note placed, a note by hand that rings on
+# The lead track: its page (the first song has no lead), a note placed, a note by hand that rings on
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/lead.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# One bar at 138 BPM is 1739 ms: the pattern starts at 100 and 7057, a step is 109 ms.
-# SEQ: the chain off, pattern A alone (its drums one bar, the other tracks four: 6957 ms at 138 BPM)
+# One bar at 130 BPM is 1846 ms: the pattern starts at 100 and 7485, a step is 115 ms.
+# SEQ: the chain off, pattern A alone (its drums one bar, the bass two, the others four: 7385 ms at 130 BPM)
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11
@@ -15,7 +15,7 @@
 350 keys 0
 360 btn 6
 900 shot
-# KNOB1 ten notes up (G5, 784 Hz), put on step 3 of bar 1 (lower key 4): it sounds at 7275
+# KNOB1 ten notes up (G5, 784 Hz), put on step 3 of bar 1 (lower key 4): it sounds at 7715
 1000 enc 2 10
 1300 keys 0x10
 1350 keys 0

@@ -1,0 +1,30 @@
+# Names: FX on JUICY opens the NAMES page, the song's name and the name of the pattern on the screen. SELECT or a
+# lower key moves the cursor, KNOB1 (EDIT on) turns the character there. The songs' page shows a kept song's name,
+# the library a pattern's (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/names.txt
+# JUICY (the first page): the song's name at the right, ACID
+500 shot
+# EDIT, FX: the NAMES page, ACID and GROOVE (pattern A's)
+600 btn 6
+700 btn 2
+900 shot
+# the 6th lower key (key 9): the song's 6th place, KNOB1 two on: B (ACID B). The 9th (key 14): the pattern's first, KNOB1 one back: F
+1000 keys 0x200
+1050 keys 0
+1100 enc 2 2
+1200 keys 0x4000
+1250 keys 0
+1300 enc 2 -1
+1500 shot
+# FX: JUICY again, ACID B
+1600 btn 2
+1800 shot
+# SAVE: the songs' page, place 1. REC: saved there; its name shows
+1900 btn 9
+2000 btn 13
+2600 shot
+# SAVE again: the library. REC: pattern A stored in place 1, its name FROOVE shows
+2700 btn 9
+2800 btn 13
+3400 shot
+3500 end

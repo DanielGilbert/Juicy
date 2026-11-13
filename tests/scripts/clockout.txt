@@ -1,4 +1,4 @@
-# Juicy the master: PLAY sends START, then 24 clocks a quarter note at the song's tempo (138 BPM: 18.1 ms apart),
+# Juicy the master: PLAY sends START, then 24 clocks a quarter note at the song's tempo (130 BPM: 19.2 ms apart),
 # PLAY again STOP (tests/host.c says what a line can do; the MIDI going out is in its output).
 #   tests/run_host.sh tests/scripts/clockout.txt
 1000 btn 12

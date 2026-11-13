@@ -1,12 +1,13 @@
-# The ARP track: its page, the first song's arpeggio (a hit every step, MODE UP/DN 1 over the pad's chords), MODE
-# turned, a hit taken away (tests/host.c says what a line can do).
+# The ARP track: its page, the arpeggio of the first song's pattern B (a hit every step, MODE UP 3 over the pad's
+# POWER chords), MODE turned, a hit taken away (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/arp.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# SEQ: the chain off, pattern A alone (its drums one bar, the other tracks four: 6957 ms at 138 BPM)
+# SEQ: the chain off; PRESETS one on: pattern B alone (its drums one bar, the bass two, the others four: 7385 ms at 130 BPM)
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11
+30 enc 6 1
 100 btn 12
 # OP3: the ARP track
 290 btn 3
@@ -14,8 +15,8 @@
 350 keys 0
 360 btn 6
 900 shot
-# KNOB1 six back: MODE UP 1 (A3 C4 E4 A3 ...)
-1000 enc 2 -6
+# KNOB1 two back: MODE UP 1 (A3 E4 A3 E4 ...)
+1000 enc 2 -2
 1500 shot
 # step 3 (lower key 2) taken away: a rest there
 2000 keys 0x4

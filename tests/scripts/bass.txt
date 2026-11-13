@@ -2,8 +2,8 @@
 #   tests/run_host.sh tests/scripts/bass.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# The first song has the bass on steps 3, 7, 11 and 15 (A1). One step at 138 BPM is 109 ms.
-# SEQ: the chain off, pattern A alone (its drums one bar, the other tracks four: 6957 ms at 138 BPM)
+# The first song has an ACID bass line, two bars of sixteenths (steps 4 and 12 rest). One step at 130 BPM is 115 ms.
+# SEQ: the chain off, pattern A alone (its drums one bar, the bass two, the others four: 7385 ms at 130 BPM)
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11
@@ -14,9 +14,10 @@
 350 keys 0
 360 btn 6
 900 shot
-# KNOB1 seven notes up (E2), put on step 1 (lower key 0)
+# SELECT three steps on (step 4, a rest), KNOB1 seven notes up (the next note E2), put on step 4 (lower key 6)
+950 enc 0 3
 1000 enc 2 7
-1900 keys 0x1
+1900 keys 0x40
 1950 keys 0
 2500 shot
 # KNOB2: the filter wide open; KNOB3: a long decay

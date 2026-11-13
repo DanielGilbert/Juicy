@@ -3,8 +3,8 @@
 #   tests/run_host.sh tests/scripts/drums.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# One bar at 138 BPM is 1739 ms. With two bars of drums: bar 1 plays 100..1839, bar 2 1839..3578, bar 1 again from 3578.
-# SEQ: the chain off, pattern A alone (its drums one bar, the other tracks four: 6957 ms at 138 BPM)
+# One bar at 130 BPM is 1846 ms. With two bars of drums: bar 1 plays 100..1946, bar 2 1946..3792, bar 1 again from 3792.
+# SEQ: the chain off, pattern A alone (its drums one bar, the bass two, the others four: 7385 ms at 130 BPM)
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11

@@ -1,0 +1,28 @@
+# Previews: on the songs' and the library's page PLAY plays the selected place; another place switches to it,
+# PLAY again (or another page) stops it, and the song is as it was (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/preview.txt
+# SAVE: the songs' page, place 1 (empty). KNOB1 two back: DEMO3. PLAY: lo-fi (84 BPM) plays
+300 btn 9
+400 enc 2 -2
+600 btn 12
+2500 shot
+# KNOB1 one back: DEMO2 (uplifting, 138 BPM) from its start
+4000 enc 2 -1
+6000 shot
+# PLAY: stopped. HOME: the first song is the song (130 BPM, its chain)
+7000 btn 12
+7300 btn 8
+7600 shot
+# SAVE twice: the library. REC: pattern A stored in place 1. PRESETS one on: pattern B on the screen
+7800 btn 9
+7900 btn 9
+8000 btn 13
+8300 enc 6 1
+8500 shot
+# PLAY: library place 1 (A's notes) plays in pattern B's place, round and round
+8600 btn 12
+10000 shot
+# HOME: the preview ends; pattern B is B again
+12000 btn 8
+12300 shot
+12500 end

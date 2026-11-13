@@ -1,19 +1,18 @@
-# As loud as the three tracks get: the bass on the kick's steps too, both filters open, long decays
+# As loud as the first song gets: pattern B (drums, the acid bass, the pad, ARP), both filters open, long decays
 # (tests/host.c says what a line can do). Built with -DLIMITER_CEILING=12000 it shows the limiter at work.
 #   tests/run_host.sh tests/scripts/loud.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# SEQ: the chain off, pattern A alone (its drums one bar, the other tracks four: 6957 ms at 138 BPM)
+# SEQ: the chain off; PRESETS one on: pattern B alone (its drums one bar, the bass two, the others four: 7385 ms at 130 BPM)
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11
-# OP2: the bass track. A1 on steps 1, 5, 9 and 13 (lower keys 0, 7, 14 and 21), CUTOFF and DECAY up
+30 enc 6 1
+# OP2: the bass track, CUTOFF and DECAY up
 290 btn 3
 300 keys 0x8
 350 keys 0
 360 btn 6
-400 keys 0x204081
-450 keys 0
 500 enc 3 55
 550 enc 4 60
 # OP3: the ARP track, CUTOFF and DECAY up

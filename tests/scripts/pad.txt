@@ -1,27 +1,30 @@
-# The pad track: its page, the first song's A minor chord, a major chord placed further on in the bar
-# (tests/host.c says what a line can do).
+# The pad track: its page, the chords of the first song's pattern B (POWER chords: A2 A2 F2 G2), the cursor's
+# chord changed, another chord placed further on in the bar (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/pad.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# One bar at 138 BPM is 1739 ms: the pattern starts at 100 and 7057, step 5 of a bar 435 ms after the bar.
-# SEQ: the chain off, pattern A alone (its drums one bar, the other tracks four: 6957 ms at 138 BPM)
-# EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
+# One bar at 130 BPM is 1846 ms, a step 115 ms. EDIT, SEQ: the chain off; PRESETS one on: pattern B alone (four
+# bars, 7385 ms: from 100 and 7485)
 10 btn 6
 20 btn 11
+30 enc 6 1
 100 btn 12
-# OP4: the pad track
+# SEL, OP4, EDIT: the pad track, the cursor on bar 1's chord
 290 btn 3
 300 keys 0x100
 350 keys 0
 360 btn 6
 900 shot
-# KNOB1 one note up (A#3), KNOB3: major. Each is heard for a moment, then the pattern's chord is back
+# KNOB1 one note up: bar 1's chord is A#2 POWER; KNOB3 seven back: A#2 MAJ. Each is heard for a moment
 1000 enc 2 1
-1100 enc 4 1
+1100 enc 4 -7
 1250 shot
-# put on step 5 of bar 1 (lower key 7): A#3 D4 F4 sounds from 7492 until bar 2 (F major) at 8796
-1300 keys 0x80
-1350 keys 0
+# SELECT eight steps on (step 9, empty), KNOB3 one on: the next chord is A#2 MIN7. Step 9 (lower key 14) tapped:
+# it is there, and sounds from 8408 until bar 2 (A2 POWER) at 9331
+1300 enc 0 8
+1400 enc 4 1
+1500 keys 0x4000
+1550 keys 0
 3000 shot
 9500 btn 12
 16000 end

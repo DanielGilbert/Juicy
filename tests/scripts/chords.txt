@@ -1,0 +1,32 @@
+# The pad's chords: the first song's pattern B (POWER chords: A2 A2 F2 G2) turned into Am7, Asus4, Fmaj7, G alone,
+# then played; ARP runs over each (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/chords.txt
+# HOME: from the first page, JUICY, to the drums. EDIT, SEQ: the chain off; PRESETS one on: pattern B alone
+5 btn 8
+10 btn 6
+20 btn 11
+30 enc 6 1
+# SEL, OP4, EDIT: the pad's page, the cursor on bar 1's chord
+290 btn 3
+300 keys 0x100
+350 keys 0
+360 btn 6
+900 shot
+# KNOB3 six back: MIN7 (each change is heard for a moment)
+1000 enc 4 -6
+1300 shot
+# SELECT a bar on, KNOB3 two back: SUS4
+1400 enc 0 16
+1500 enc 4 -2
+1800 shot
+# the next bar: five back, MAJ7
+1900 enc 0 16
+2000 enc 4 -5
+2300 shot
+# the last: one on, ROOT (the root alone; ARP climbs its octaves)
+2400 enc 0 16
+2500 enc 4 1
+2800 shot
+3000 btn 12
+10500 btn 12
+11000 end

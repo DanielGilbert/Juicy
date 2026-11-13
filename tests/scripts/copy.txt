@@ -1,16 +1,16 @@
-# A copy of a pattern: REC on HOME's page puts pattern A into the first empty pattern, F, and shows it. A change
-# to F leaves A as it was (tests/host.c says what a line can do).
+# A copy of a pattern: REC on HOME's page puts pattern A into the first empty pattern, E, and shows it. A change
+# to E leaves A as it was (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/copy.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# SEQ: the chain off. HOME, REC: F is on the screen, four bars as A has
+# SEQ: the chain off. HOME, REC: E is on the screen, four bars as A has
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
 20 btn 11
 300 btn 8
 400 btn 13
 800 shot
-# OP1: the drums of F are those of A. The kick's step 2 added (lower key 2)
+# OP1: the drums of E are those of A. The kick's step 2 added (lower key 2)
 890 btn 3
 900 keys 0x2
 950 keys 0
@@ -18,15 +18,15 @@
 1000 keys 0x4
 1050 keys 0
 1400 shot
-# HOME, PRESETS five back: A, then OP1: its kick has no step 2
+# HOME, PRESETS four back: A, then OP1: its kick has no step 2
 1500 btn 8
-1600 enc 6 -5
+1600 enc 6 -4
 1690 btn 3
 1700 keys 0x2
 1750 keys 0
 1760 btn 6
 2100 shot
-# HOME, REC again: the copy goes to G now
+# HOME, REC again: the copy goes to F now
 2200 btn 8
 2300 btn 13
 2700 shot

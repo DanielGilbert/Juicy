@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Juicy's drum voices: a kick, a hat, a clap, an open hat (the hat cuts it off), a snare and a tom, made from sines
- * and noise. Everything here runs in the audio interrupt: integers only, no division (docs/RULES.md). sound.c comes
+ * and noise; an accented hit starts louder. Everything here runs in the audio interrupt: integers only, no division (docs/RULES.md). sound.c comes
  * first. */
 enum { DRUM_KICK, DRUM_HAT, DRUM_CLAP, DRUM_OPEN_HAT, DRUM_SNARE, DRUM_TOM, DRUM_COUNT };
 
 /* Levels are Q23 (full scale 32767 << 8): a decay is "level -= level >> shift" each frame, and the eight extra
  * bits let it fall smoothly to silence. A shift of n is a time constant of 2^n frames (10: 23 ms, 12: 93 ms). */
 #define DRUM_LEVEL_FULL (32767 << 8)
+#define DRUM_LEVEL_ACCENT (DRUM_LEVEL_FULL / 2 * 3)   /* an accented hit: half again as loud */
 #define DRUM_LEVEL_SILENT (16 << 8)
 
 #define KICK_BASE_STEP 4674794u                 /* 48 Hz: phase step per frame = f * 2^32 / 44100 */
@@ -44,7 +45,7 @@ enum { DRUM_KICK, DRUM_HAT, DRUM_CLAP, DRUM_OPEN_HAT, DRUM_SNARE, DRUM_TOM, DRUM
 
 static struct { uint32_t phase, sweep_step; int32_t level; } kick;
 static struct { int32_t level, previous_noise; } hat;
-static struct { int32_t level, low, band; uint32_t age_frames; } clap;
+static struct { int32_t level, peak, low, band; uint32_t age_frames; } clap;   /* peak: each burst's start */
 static struct { int32_t level, previous_noise; uint32_t choked; } open_hat;
 static struct { uint32_t phase; int32_t tone_level, noise_level; } snare;
 static struct { uint32_t phase, sweep_step; int32_t level; } tom;
@@ -56,28 +57,29 @@ static int32_t drum_noise(void)                 /* white noise, -32768..32767 */
     return (int32_t)drum_noise_state >> 16;
 }
 
-static void drums_trigger(uint32_t drum)
+static void drums_trigger(uint32_t drum, int accented)
 {
+    const int32_t level = accented ? DRUM_LEVEL_ACCENT : DRUM_LEVEL_FULL;
     if (drum == DRUM_KICK) {
         kick.phase = 0;
         kick.sweep_step = KICK_SWEEP_STEP;
-        kick.level = DRUM_LEVEL_FULL;
+        kick.level = level;
     } else if (drum == DRUM_HAT) {
-        hat.level = DRUM_LEVEL_FULL;
+        hat.level = level;
         open_hat.choked = 1;
     } else if (drum == DRUM_CLAP) {
         clap.age_frames = 0;
-        clap.level = DRUM_LEVEL_FULL;
+        clap.level = clap.peak = level;
     } else if (drum == DRUM_OPEN_HAT) {
-        open_hat.level = DRUM_LEVEL_FULL;
+        open_hat.level = level;
         open_hat.choked = 0;
     } else if (drum == DRUM_SNARE) {
         snare.phase = 0;
-        snare.tone_level = snare.noise_level = DRUM_LEVEL_FULL;
+        snare.tone_level = snare.noise_level = level;
     } else if (drum == DRUM_TOM) {
         tom.phase = 0;
         tom.sweep_step = TOM_SWEEP_STEP;
-        tom.level = DRUM_LEVEL_FULL;
+        tom.level = level;
     }
 }
 
@@ -117,9 +119,9 @@ static void drums_render(int32_t *out, uint32_t frame_count, const int32_t level
         for (i = 0; i < frame_count; i++) {
             int32_t high, sample;
             if (clap.age_frames == CLAP_BURST_FRAMES || clap.age_frames == 2u * CLAP_BURST_FRAMES)
-                clap.level = DRUM_LEVEL_FULL;
+                clap.level = clap.peak;
             else if (clap.age_frames == CLAP_TAIL_START_FRAME)
-                clap.level = DRUM_LEVEL_FULL / 4 * 3;
+                clap.level = clap.peak / 4 * 3;
             clap.low += (CLAP_FILTER_FREQUENCY * clap.band) >> 15;
             high = (drum_noise() >> 2) - clap.low - ((CLAP_FILTER_DAMPING * clap.band) >> 15);
             clap.band += (CLAP_FILTER_FREQUENCY * high) >> 15;

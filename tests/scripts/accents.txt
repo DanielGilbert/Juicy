@@ -1,0 +1,28 @@
+# Accents: a step key held with EDIT on accents its step, a tap does what it always did (when it is let go)
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/accents.txt
+# HOME: from the first page, JUICY, to the drums. EDIT, SEQ: the chain off, pattern A alone
+5 btn 8
+10 btn 6
+20 btn 11
+# KICK (the selected drum): step 5 (lower key 7) held, its kick is accented (and every drum on that step; the
+# first song accents the offbeats already: steps 3, 7, 11, 15)
+500 keys 0x80
+1400 keys 0
+# step 3 (lower key 4), empty, held: a kick goes there, accented. Step 8 (lower key 12) tapped: a plain kick
+1500 keys 0x10
+2400 keys 0
+2500 keys 0x1000
+2550 keys 0
+2700 shot
+# SEL, OP2, EDIT: the bass. Step 2 (lower key 2) held: its note (A1) accented
+2800 btn 3
+2850 keys 0x8
+2900 keys 0
+2950 btn 6
+3200 keys 0x4
+4100 keys 0
+4200 shot
+4300 btn 12
+12300 btn 12
+13000 end

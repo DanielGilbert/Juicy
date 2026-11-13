@@ -1,13 +1,24 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Juicy's pad: one chord at a time, three notes (the root, a minor or major third, the fifth). Each note is two
- * sawtooths a little apart in pitch, which is what makes it wide and slowly moving; all six go through one
+/* Juicy's pad: one chord at a time, one to four notes (PAD_CHORDS). Each note is two
+ * sawtooths a little apart in pitch, which is what makes it wide and slowly moving; all of them go through one
  * low-pass filter. It fades in and out (ATTACK, RELEASE), and a new chord takes over from the one that sounds
  * without a gap. How far apart the two sawtooths are is SPREAD, how much the filter sings RESONANCE. Everything here runs in the audio interrupt: integers only, no division (docs/RULES.md). sound.c and
  * synth.c (for SYNTH_CUTOFF, SYNTH_DAMPING) come first. */
-#define PAD_NOTE_COUNT 3u
-#define PAD_MINOR_THIRD 3u                      /* semitones above the root */
-#define PAD_MAJOR_THIRD 4u
-#define PAD_FIFTH 7u
+#define PAD_NOTES_MAX 4u
+enum { PAD_CHORD_MINOR, PAD_CHORD_MAJOR, PAD_CHORD_MINOR7, PAD_CHORD_MAJOR7, PAD_CHORD_DOMINANT7, PAD_CHORD_SUS2,
+       PAD_CHORD_SUS4, PAD_CHORD_DIMINISHED, PAD_CHORD_POWER, PAD_CHORD_ROOT, PAD_CHORD_COUNT };
+static const struct {
+    uint8_t note_count;
+    uint8_t intervals[PAD_NOTES_MAX];           /* semitones above the root, the root first */
+} PAD_CHORDS[PAD_CHORD_COUNT] = {
+    {3, {0, 3, 7}}, {3, {0, 4, 7}},             /* minor, major */
+    {4, {0, 3, 7, 10}}, {4, {0, 4, 7, 11}}, {4, {0, 4, 7, 10}},   /* minor 7th, major 7th, dominant 7th */
+    {3, {0, 2, 7}}, {3, {0, 5, 7}},             /* sus2, sus4: the third is a second or a fourth */
+    {3, {0, 3, 6}},                             /* diminished */
+    {2, {0, 7}}, {1, {0}},                      /* power chord (root and fifth), the root alone */
+};
+/* the notes of a chord about as loud together as three: Q8, by how many there are (the square root of 3 / count) */
+static const int32_t PAD_NOTES_GAIN[PAD_NOTES_MAX + 1u] = {0, 443, 314, 256, 222};
 #define PAD_DETUNE_SHIFT 8u                     /* SPREAD 64: the two sawtooths of a note 1/256 below and above it (7 cents each way) */
 #define PAD_SPREAD_UNIT_SHIFT 6u                /* SPREAD counts in 1/64 of that */
 #define PAD_LEVEL_FULL (1 << 24)                /* the loudness is Q24 and moves in a straight line */
@@ -27,16 +38,16 @@ static const uint32_t PAD_LEVEL_STEP[SYNTH_PARAMETER_MAX + 1u] = {
     124, 116, 109, 102, 95};
 
 static struct {
-    uint32_t phase[PAD_NOTE_COUNT][2], phase_step[PAD_NOTE_COUNT][2], held;
+    uint32_t phase[PAD_NOTES_MAX][2], phase_step[PAD_NOTES_MAX][2], held, note_count;
     int32_t level, low, band;
 } pad;
 
-static void pad_chord_on(uint32_t root, int major, uint32_t spread)   /* root: MIDI; spread 0..SYNTH_PARAMETER_MAX */
+static void pad_chord_on(uint32_t root, uint32_t chord, uint32_t spread)   /* root: MIDI; chord: PAD_CHORD_*; spread 0..SYNTH_PARAMETER_MAX */
 {
-    const uint32_t notes[PAD_NOTE_COUNT] = {root, root + (major ? PAD_MAJOR_THIRD : PAD_MINOR_THIRD), root + PAD_FIFTH};
     uint32_t note;
-    for (note = 0; note < PAD_NOTE_COUNT; note++) {
-        uint32_t phase_step = note_phase_step(notes[note]);
+    pad.note_count = PAD_CHORDS[chord].note_count;
+    for (note = 0; note < pad.note_count; note++) {
+        uint32_t phase_step = note_phase_step(root + PAD_CHORDS[chord].intervals[note]);
         uint32_t detune = ((phase_step >> PAD_DETUNE_SHIFT) * spread) >> PAD_SPREAD_UNIT_SHIFT;
         pad.phase_step[note][0] = phase_step - detune;
         pad.phase_step[note][1] = phase_step + detune;
@@ -53,6 +64,7 @@ static void pad_render(int32_t *out, uint32_t frame_count, uint32_t cutoff, uint
 {
     int32_t filter_frequency = SYNTH_CUTOFF[cutoff], damping = SYNTH_DAMPING[resonance];
     int32_t attack_step = (int32_t)PAD_LEVEL_STEP[attack], release_step = (int32_t)PAD_LEVEL_STEP[release];
+    const int32_t notes_gain = PAD_NOTES_GAIN[pad.note_count];
     uint32_t i, note;
     if (pad_quiet()) return;
     for (i = 0; i < frame_count; i++) {
@@ -64,11 +76,12 @@ static void pad_render(int32_t *out, uint32_t frame_count, uint32_t cutoff, uint
             pad.level -= release_step;
             if (pad.level < 0) pad.level = 0;
         }
-        for (note = 0; note < PAD_NOTE_COUNT; note++) {
+        for (note = 0; note < pad.note_count; note++) {
             pad.phase[note][0] += pad.phase_step[note][0];
             pad.phase[note][1] += pad.phase_step[note][1];
-            wave += ((int32_t)pad.phase[note][0] >> 20) + ((int32_t)pad.phase[note][1] >> 20);   /* six of these: -12288..12282 */
+            wave += ((int32_t)pad.phase[note][0] >> 20) + ((int32_t)pad.phase[note][1] >> 20);   /* two a note: -4096..4094 */
         }
+        wave = (wave * notes_gain) >> 8;        /* (four notes: up to -14189..14187) */
         pad.low += (filter_frequency * pad.band) >> 15;
         high = wave - pad.low - ((damping * pad.band) >> 15);
         pad.band += (filter_frequency * high) >> 15;

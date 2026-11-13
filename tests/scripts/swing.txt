@@ -1,5 +1,5 @@
 # Swing: a hat on steps 1 and 2 of the empty pattern F, looped. Straight (SWING 50) the second comes a step after
-# the first (109 ms at 138 BPM); at SWING 75 a step and a half (163 ms). The first is never moved
+# the first (115 ms at 130 BPM); at SWING 75 a step and a half (173 ms). The first is never moved
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/swing.txt
 # HOME: to the drums. PRESETS five on: pattern F. The 2nd lower key: HAT selected
@@ -15,7 +15,7 @@
 600 keys 0x4
 650 keys 0
 700 shot
-# HOME: JUICY. PLAY: two bars straight (1000 and 2739), then KNOB3 to SWING 75 for the next two (4478, 6217)
+# HOME: JUICY. PLAY: two bars straight (1000 and 2846), then KNOB3 to SWING 75 for the next two (4692, 6538)
 800 btn 8
 1000 btn 12
 4000 enc 4 25

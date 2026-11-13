@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Juicy's synth voice, one note at a time: a wave (a sawtooth, a square, a pulse, two sawtooths a little apart, or
  * a soft triangle) through a resonant low-pass filter. One envelope rises (ATTACK), then falls through the note and
- * drives both the loudness and the filter, so a short DECAY plucks and a long one sustains. The bass, the sequence
+ * drives both the loudness and the filter, so a short DECAY plucks and a long one sustains; an accented note is
+ * louder and its envelope opens the filter further. The bass, the sequence
  * and the lead track are each one of these; their sounds (juicy.c) make the synth_shape_t.
  * Everything here runs in the audio interrupt: integers only, no division (docs/RULES.md). sound.c comes first. */
 #define SYNTH_PARAMETER_MAX 100u                /* CUTOFF and DECAY go 0..100 */
@@ -13,6 +14,8 @@
 #define SYNTH_SQUARE_WIDTH 0x80000000u           /* the pulses: high for this much of 2^32 */
 #define SYNTH_PULSE_WIDTH 0x55555555u            /* a third */
 #define SYNTH_SAWS_DETUNE_SHIFT 7u               /* the second sawtooth: higher by 1 / 2^this of the pitch */
+#define SYNTH_ACCENT_LOUDNESS_Q8 384             /* an accented note: half again as loud ... */
+#define SYNTH_ACCENT_ENVELOPE 25u                /* ... and its envelope opens the filter this many steps of SYNTH_CUTOFF further */
 
 enum { SYNTH_WAVE_SAW, SYNTH_WAVE_SQUARE, SYNTH_WAVE_PULSE, SYNTH_WAVE_SAWS, SYNTH_WAVE_SOFT, SYNTH_WAVE_COUNT };
 
@@ -80,13 +83,14 @@ typedef struct {                                /* what makes a sound its own */
 } synth_shape_t;
 
 typedef struct {
-    uint32_t phase, phase_detuned, phase_step, held, attacking, control_frames_left;
+    uint32_t phase, phase_detuned, phase_step, held, attacking, accented, control_frames_left;
     int32_t envelope, amplitude_target, amplitude, filter_frequency, low, band;
 } synth_voice_t;
 
-static void synth_note_on(synth_voice_t *voice, const synth_shape_t *shape, uint32_t note)
+static void synth_note_on(synth_voice_t *voice, const synth_shape_t *shape, uint32_t note, int accented)
 {
     voice->phase_step = note_phase_step(note);
+    voice->accented = accented != 0;
     voice->phase_detuned = voice->phase + 0x40000000u;   /* a quarter turn apart: every note starts equally loud */
     voice->attacking = shape->attack_rate != 0u;  /* (an attack rises from where the envelope is: no click) */
     if (!voice->attacking) voice->envelope = SYNTH_ENVELOPE_FULL;
@@ -118,9 +122,9 @@ static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32
                 voice->envelope -= (voice->envelope >> 16) * (voice->held || !shape->release_rate ? SYNTH_DECAY_RATE[decay] : shape->release_rate);
                 if (voice->envelope < 65536) voice->envelope = 0;
             }
-            cutoff_now = cutoff + ((((uint32_t)voice->envelope >> 16) * shape->envelope_amount) >> 14);
+            cutoff_now = cutoff + ((((uint32_t)voice->envelope >> 16) * (shape->envelope_amount + (voice->accented ? SYNTH_ACCENT_ENVELOPE : 0u))) >> 14);
             voice->filter_frequency = SYNTH_CUTOFF[cutoff_now > SYNTH_PARAMETER_MAX ? SYNTH_PARAMETER_MAX : cutoff_now];
-            voice->amplitude_target = voice->envelope >> 15;
+            voice->amplitude_target = voice->accented ? ((voice->envelope >> 15) * SYNTH_ACCENT_LOUDNESS_Q8) >> 8 : voice->envelope >> 15;
             voice->control_frames_left = SYNTH_CONTROL_FRAMES;
         }
         run_frames = frame_count < voice->control_frames_left ? frame_count : voice->control_frames_left;

@@ -1,4 +1,4 @@
-# The echo: a note by hand on the ARP track comes back every three steps (326 ms at 138 BPM), a bit over
+# The echo: a note by hand on the ARP track comes back every three steps (346 ms at 130 BPM), a bit over
 # half as loud each time; with ECHO at 0 it does not (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/echo.txt
 # HOME: from the first page, JUICY, to the drums
@@ -12,12 +12,12 @@
 360 btn 6
 380 btn 2
 390 btn 2
-# C#4 (key 8, 277 Hz) for 200 ms: the first song sends 40 of 100 into the echo
+# C#4 (key 8, 277 Hz) for 200 ms: the first song sends 50 of 100 into the echo
 1000 keys 0x100
 1200 keys 0
 1500 shot
 # KNOB4: ECHO down to 0. Then the next note (D4, key 9, 294 Hz)
-4000 enc 5 -40
+4000 enc 5 -50
 5000 keys 0x200
 5200 keys 0
 5500 shot
