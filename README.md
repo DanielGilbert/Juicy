@@ -177,10 +177,11 @@ pattern (glowing), the one that sounds lit. A muted track's name is dark on its 
 
 ## Build it
 
-Juicy is [firmware/src/juicy.c](firmware/src/juicy.c) (the panel, the pages, saving) with `song.c` (what a song holds),
-`demos.c`, `sequencer.c` (the sequencer and the mixer, in the audio interrupt) and `screen.c`, its sound in `drums.c`,
-`synth.c`, `pad.c`, `echo.c`, `reverb.c` and `limiter.c`, on Dinghy's platform. They build as one: `juicy.c` includes the rest. The build runs in Docker (on Linux natively, as Dinghy
-describes it):
+Juicy is [firmware/src/juicy.c](firmware/src/juicy.c) (the panel, the pages, saving) with `song.c` (what a song
+holds), `demos.c`, `sequencer.c` (the sequencer and the mixer, in the audio interrupt), `pages.c` (what each page
+does), `view.c` (the lights and the screen) and `screen.c`, its sound in `drums.c`, `synth.c`, `pad.c`, `echo.c`,
+`reverb.c` and `limiter.c`, on Dinghy's platform. They build as one: `juicy.c` includes the rest. The build runs in
+Docker (on Linux natively, as Dinghy describes it):
 
 ```sh
 docker build --platform linux/amd64 -t juicy-build -f tools/Dockerfile tools   # once
@@ -196,6 +197,10 @@ on the connected FM-1 (it asks before it writes). The first run also builds the 
 `tests/run_host.sh` runs Juicy on your computer from a script of key presses and knob turns
 ([tests/scripts/](tests/scripts/)): the sound as `build/host/juicy.wav`, the screen as PNGs. A browser version with a
 clickable FM-1: `sh web/build.sh` in the container, then `node web/serve.js` and <http://localhost:8137>.
+
+`tests/regress.sh` checks that a change to the code changed nothing it should not: it runs every host script and
+compares the sound, the screens and the MIDI out with a list kept before (`sh tests/regress.sh record` first, then
+`sh tests/regress.sh` after the change: `SAME`, or the scripts whose output differs).
 
 **Versions:** the number is in [VERSION](VERSION), and a plain build shows it on the start screen as `0.1-dev`
 (identity `FM-1_940`). A release is a tag `v0.1`: GitHub builds `juicy-0.1.fwsc` (identity `FM-1_941`, the start

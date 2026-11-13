@@ -292,6 +292,14 @@ static void empty_song(void)
     song.reverb = 35;
 }
 
+static int song_has_chain(void)                 /* a place of the song's chain holds a pattern */
+{
+    uint32_t slot;
+    for (slot = 0; slot < CHAIN_SLOTS; slot++)
+        if (song.chain[slot]) return 1;
+    return 0;
+}
+
 static int pattern_empty(const volatile pattern_t *pattern)
 {
     uint32_t bar, drum, melodic, step;
@@ -303,6 +311,44 @@ static int pattern_empty(const volatile pattern_t *pattern)
                 if (pattern->notes[melodic][bar][step]) return 0;
     }
     return 1;
+}
+
+#define ALL_TRACKS (1u + MELODIC_COUNT)         /* pattern_clear: every track */
+
+/* emptied, its bars stay: every track (ALL_TRACKS, the accents too), the drums' drum (the drums' accents are every
+ * drum's: they stay), or a melodic track (1 + melodic) with its accents */
+static void pattern_clear(volatile pattern_t *pattern, uint32_t track, uint32_t drum)
+{
+    uint32_t bar, cleared_drum, melodic, step, accents_track;
+    for (bar = 0; bar < BAR_COUNT; bar++) {
+        for (cleared_drum = 0; cleared_drum < DRUM_COUNT; cleared_drum++)
+            if (track == ALL_TRACKS || (track == 0u && cleared_drum == drum)) pattern->drum_hits[cleared_drum][bar] = 0;
+        for (melodic = 0; melodic < MELODIC_COUNT; melodic++)
+            for (step = 0; step < STEPS_PER_BAR; step++)
+                if (track == ALL_TRACKS || track == 1u + melodic) {
+                    pattern->notes[melodic][bar][step] = 0;
+                    set_note_gate(pattern->gates[melodic][bar], step, 0);
+                }
+        for (accents_track = 0; accents_track < 1u + MELODIC_COUNT; accents_track++)
+            if (track == ALL_TRACKS || (track == accents_track && track != 0u)) pattern->accents[accents_track][bar] = 0;
+    }
+}
+
+/* a track's bar taken out (track: 0 the drums, 1 + melodic): the bars after it move up, the last one is empty; a track
+ * keeps one bar */
+static void pattern_remove_bar(volatile pattern_t *pattern, uint32_t track, uint32_t removed_bar)
+{
+    uint32_t bar, drum, step;
+    for (bar = removed_bar; bar < BAR_COUNT; bar++) {
+        for (drum = 0; track == 0u && drum < DRUM_COUNT; drum++)
+            pattern->drum_hits[drum][bar] = bar + 1u < BAR_COUNT ? pattern->drum_hits[drum][bar + 1u] : 0u;
+        for (step = 0; track != 0u && step < STEPS_PER_BAR; step++)
+            pattern->notes[track - 1u][bar][step] = bar + 1u < BAR_COUNT ? pattern->notes[track - 1u][bar + 1u][step] : 0u;
+        for (step = 0; track != 0u && step < STEPS_PER_BAR / 2u; step++)   /* (two steps' gates a byte) */
+            pattern->gates[track - 1u][bar][step] = bar + 1u < BAR_COUNT ? pattern->gates[track - 1u][bar + 1u][step] : 0u;
+        pattern->accents[track][bar] = bar + 1u < BAR_COUNT ? pattern->accents[track][bar + 1u] : 0u;
+    }
+    if (pattern->bar_totals[track] > 1u) pattern->bar_totals[track]--;
 }
 
 static int pattern_valid(const volatile pattern_t *checked)
