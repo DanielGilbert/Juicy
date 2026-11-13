@@ -1,4 +1,4 @@
-# The pad's chords: the first song's pattern B (POWER chords: A2 A2 F2 G2) turned into Am7, Asus4, Fmaj7, G alone,
+# The pad's chords: the test song's pattern B (POWER chords: A2 A2 F2 G2) turned into Am7, Asus4, Fmaj7, G alone,
 # then played; ARP runs over each (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/chords.txt
 # HOME: from the first page, JUICY, to the drums. EDIT, SEQ: the chain off; PRESETS one on: pattern B alone

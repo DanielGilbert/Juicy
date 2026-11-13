@@ -78,26 +78,26 @@ static void first_song(void)
     song.echo[MELODIC_ARP] = 50;
     song.levels[MELODIC_PAD] = 70;
     for (pattern = A; pattern <= D; pattern++) {
-        volatile pattern_t *p = &song.patterns[pattern];
+        volatile pattern_t *filled = &song.patterns[pattern];   /* (the pattern being filled) */
         for (bar = 0; bar < 2u; bar++) {
             for (step = 0; step < STEPS_PER_BAR; step++)
                 if (ACID[bar][step]) song_note(pattern, MELODIC_BASS, bar, step, ACID[bar][step], 1, 6);
-            p->accents[1u + MELODIC_BASS][bar] = ACID_ACCENTS[bar];
+            filled->accents[1u + MELODIC_BASS][bar] = ACID_ACCENTS[bar];
         }
         song_bars(pattern, 1u + MELODIC_BASS, 2u);
         for (bar = 0; pattern != A && bar < BAR_COUNT; bar++) {
             song_chord(pattern, bar, 0, pattern == D ? CHORD(45, PAD_CHORD_ROOT) : POWER[bar]);
             song_arp_steps(pattern, bar, pattern == D ? 0x5555 : 0xFFFF, 4);
-            p->accents[1u + MELODIC_ARP][bar] = 0x1111;
+            filled->accents[1u + MELODIC_ARP][bar] = 0x1111;
         }
         song_bars(pattern, 1u + MELODIC_ARP, BAR_COUNT);
         song_bars(pattern, 1u + MELODIC_PAD, BAR_COUNT);
-        p->arp_mode = pattern == D ? ARP_MODE(ARP_ORDER_RANDOM, 3u) : ARP_MODE(ARP_ORDER_UP, 3u);
-        p->drum_hits[DRUM_HAT][0] = 0x4444;
-        p->accents[0][0] = 0x4444;
-        if (pattern != D) p->drum_hits[DRUM_KICK][0] = 0x1111;
-        if (pattern == B || pattern == C) p->drum_hits[DRUM_CLAP][0] = 0x1010;
-        if (pattern == C) p->drum_hits[DRUM_OPEN_HAT][0] = 0x4444;
+        filled->arp_mode = pattern == D ? ARP_MODE(ARP_ORDER_RANDOM, 3u) : ARP_MODE(ARP_ORDER_UP, 3u);
+        filled->drum_hits[DRUM_HAT][0] = 0x4444;
+        filled->accents[0][0] = 0x4444;
+        if (pattern != D) filled->drum_hits[DRUM_KICK][0] = 0x1111;
+        if (pattern == B || pattern == C) filled->drum_hits[DRUM_CLAP][0] = 0x1010;
+        if (pattern == C) filled->drum_hits[DRUM_OPEN_HAT][0] = 0x4444;
     }
     song_bars(D, 0, BAR_COUNT);
     for (bar = 0; bar < BAR_COUNT; bar++) {
@@ -198,7 +198,7 @@ static void demo_lofi(void)
     song.echo[MELODIC_ARP] = 55;
     song.echo[MELODIC_LEAD] = 45;
     for (pattern = A; pattern <= D; pattern++) {
-        volatile pattern_t *p = &song.patterns[pattern];
+        volatile pattern_t *filled = &song.patterns[pattern];   /* (the pattern being filled) */
         for (bar = 0; bar < BAR_COUNT; bar++) {
             song_chord(pattern, bar, 0, CHORDS[bar]);
             if (bar == 3u) song_chord(pattern, bar, 8, CHORD(45, PAD_CHORD_MINOR7));   /* the sus resolves */
@@ -210,20 +210,20 @@ static void demo_lofi(void)
             }
             for (note = 0; (pattern == C || pattern == D) && note < 3u; note++)
                 if (LEAD[bar][note][2]) song_note(pattern, MELODIC_LEAD, bar, LEAD[bar][note][0], LEAD[bar][note][1], LEAD[bar][note][2], 0);
-            p->accents[1u + MELODIC_ARP][bar] = 0x0101;   /* the arpeggio leans on 1 and 3 */
+            filled->accents[1u + MELODIC_ARP][bar] = 0x0101;   /* the arpeggio leans on 1 and 3 */
         }
         song_bars(pattern, 1u + MELODIC_BASS, BAR_COUNT);
         song_bars(pattern, 1u + MELODIC_ARP, BAR_COUNT);
         song_bars(pattern, 1u + MELODIC_PAD, BAR_COUNT);
         song_bars(pattern, 1u + MELODIC_LEAD, BAR_COUNT);
-        p->arp_mode = pattern == C ? ARP_MODE(ARP_ORDER_RANDOM, 2u) : ARP_MODE(ARP_ORDER_DOWN, 2u);
-        p->swing = 15;                          /* 65 % */
+        filled->arp_mode = pattern == C ? ARP_MODE(ARP_ORDER_RANDOM, 2u) : ARP_MODE(ARP_ORDER_DOWN, 2u);
+        filled->swing = 15;                          /* 65 % */
         if (pattern == B || pattern == C) {
-            p->drum_hits[DRUM_KICK][0] = 0x0481;    /* 1, the "and" of 2, 3's "and" */
-            p->drum_hits[DRUM_SNARE][0] = 0x1010;
+            filled->drum_hits[DRUM_KICK][0] = 0x0481;    /* 1, the "and" of 2, 3's "and" */
+            filled->drum_hits[DRUM_SNARE][0] = 0x1010;
         }
-        if (pattern != A) p->drum_hits[DRUM_HAT][0] = 0x5555;
-        p->accents[0][0] = 0x4444;              /* the offbeat hats */
+        if (pattern != A) filled->drum_hits[DRUM_HAT][0] = 0x5555;
+        filled->accents[0][0] = 0x4444;              /* the offbeat hats */
     }
     {
         static const char *const NAMES[] = {"INTRO", "GROOVE", "MELODY", "FLOAT"};

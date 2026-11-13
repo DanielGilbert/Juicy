@@ -1,79 +1,22 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Juicy: a groovebox for the M-VAVE FM-1, built on Dinghy (platform.c and everything below it: updates, the USB
- * rescue, the keys, knobs, LEDs, the screen, flash storage). Five tracks, DRUMS (six of them: KICK, HAT, CLAP,
- * OPEN HAT, SNARE, TOM), BASS, ARP, PAD and LEAD, in eight patterns (A..H) in which each track has up to four
- * bars of 16 steps of its own (a pattern lasts as long as its longest track, the shorter ones go round), a chain that plays patterns one after the other, an echo
- * three steps long that all but the drums can send into, a reverb for ARP, PAD, LEAD and the echo, and a
- * limiter over all of it.
+ * rescue, the keys, knobs, LEDs, the screen, flash storage). What it does, key by key and page by page, is in
+ * README.md (the panel, the screens, notes, accents, ARP, the lights, MIDI); what changed, in CHANGELOG.md.
  *
- *   the keys     play: on DRUMS the lower keys from the left are the six drums, on the other tracks the keys are
- *                notes (the pad's: the chord on that note; keys outside the track's notes are dark). Nothing of it
- *                goes into the pattern, but what was played last is what EDIT puts there
- *   SEL          (lit) OP1 .. OP5, the first five upper keys, pick the track on the screen: DRUMS, BASS,
- *                ARP, PAD, LEAD. SEL again: the keys play. SEL and EDIT are never on together: the one
- *                pressed turns the other off. The five black keys an octave above OP1 .. OP5 mute and unmute
- *                those tracks (lit: it plays): what the pattern holds is not heard, the keys still are. Mutes are
- *                not saved
- *   EDIT         (lit, the page's name orange) the lower keys are the 16 steps of the bar on the screen; a step key
- *                does its job when it is let go. DRUMS: a tap puts a hit of the selected drum there or takes it away.
- *                The other tracks: a tap on a
- *                note (or on a long note anywhere) takes it away; on an empty step it puts the next note there (what
- *                was played or what the knobs show; the pad's: that chord), it sounds, and the cursor goes there.
- *                Held (HOLD_MS) instead: the step is accented or not any more (louder; BASS, ARP, LEAD also brighter;
- *                the screen: a white top). DRUMS: for every drum on the step; on an empty step the drum goes there
- *                accented. A track: its note; on an empty step the next note goes there accented. The pad has none.
- *                On a track's notes the knobs show the note under the cursor and change it (on an empty step: the
- *                next note). On BASS, ARP, LEAD a note lasts LENGTH (KNOB4): 10 .. 90 % of a step, or 1 .. 16
- *                steps (to its bar's end at most). ARP's steps are hits, not notes (placed silently, as a drum's):
- *                each plays the next note of the chord the pad sounds (none: silent) in the order of MODE (KNOB1,
- *                the pattern's: UP, DOWN, UP/DN or RAND over 1 .. 3 octaves); a chord on the pad starts it over
- *   FX           the track's pages in turn: its notes, its sound (not DRUMS), its mix (on JUICY: the NAMES page,
- *                the song's name and the pattern's on the screen; SELECT or a lower key the cursor, KNOB1 the
- *                character there, with EDIT). The sound page: The knobs shape the sound (WAVE, RESO,
- *                ATTACK, ENV; the pad's SPREAD, RESO, ATTACK, RELEASE), ALGORITHM picks a named one or USER1 /
- *                USER2 (the player's own, there for every song), SEQ keeps the sound as USER1, REC as USER2
- *                (each asks twice); all of it with EDIT on. The keys play here, EDIT or not. The mix page (EDIT on):
- *                LEVEL (DRUMS: the selected drum's), PAN, REVERB and ECHO, how much goes into those; the keys play
- *   KNOB1..4     (with EDIT on, as SEQ and REC) what the four places along the bottom of the screen say
- *   SELECT       on DRUMS, EDIT or not: the drum the keys edit, the orange row (DRUMS shows three drums at a time:
- *                the page of the selected one, two marks at the bottom say which). On a track's notes, EDIT or not:
- *                the cursor, a step framed in the roll (with EDIT its key blinks), on through the track's bars;
- *                stopped, the note it comes to sounds (not ARP's hits)
- *   OCT- OCT+    the bar on the screen: the one before, the next one (the cursor goes along). With EDIT on, on a
- *                track's page, OCT+ past the track's last bar gives it one more (up to four), and OCT- held takes
- *                the bar on the screen out of the track (its only bar: emptied). Recording: the keys an octave
- *                down or up (lit: they are)
- *   PRESETS      the pattern on the screen, A .. H, on every page
- *   HOME         the page for the whole song: TEMPO, REVERB, the SWING of the pattern on the screen (50 straight .. 80 %),
- *                and the chain, where with EDIT on the lower keys are its 16 places (HOME again: back to the track)
- *   REC          on HOME's page: a copy of the pattern on the screen, in the first empty pattern (when REC is let go).
- *                On a track's notes, with EDIT on: recording on or off (REC lit). Recording, the keys play, and a
- *                key puts its note (ARP: a hit) at the cursor, which moves on by its LENGTH (the pad's: a bar); SELECT moves it
- *                over a rest. Held, with EDIT on: empties what is on the screen in the pattern on the screen, its bars stay: on HOME's
- *                page the whole pattern, on DRUMS the selected drum, on a track's notes page that track
- *   SAVE         the page of the songs: KNOB1 picks one (three demo songs, an empty one, or one of eight kept in
- *                flash), SEQ twice loads it, REC saves the song there (twice where there is one already). This
- *                page needs no EDIT, and nothing of it works while the song plays. SAVE again: the library, 16
- *                places for patterns of any song (their notes, hits and swing, not the sounds): KNOB1 or a lower key picks
- *                one, SEQ puts it into the pattern on the screen (twice where that holds something; this works
- *                while it plays), REC stores the pattern on the screen there (twice where there is one already)
- *   SEQ          what plays: the chain (lit), or the pattern on the screen, round and round
- *   PLAY         start and stop. On the songs' or the library's page: the selected place plays (a preview: the song
- *                is put aside, and back as it was when PLAY, another page, PRESETS, SEQ or REC end it)
- *   MIDI (USB, the TRS jack)  a clock coming in: Juicy follows its tempo (HOME's page says EXT) and START, CONTINUE,
- *                STOP. Without one Juicy is the master: PLAY sends START / STOP, and the clock goes out while it plays
+ * The files, built as one (this one includes the rest):
+ *   song.c       what a song holds: tracks, patterns, notes and chords, names, sounds; checking and growing a kept one
+ *   demos.c      the demo songs (DEMO1 is also what a new FM-1 starts with)
+ *   sequencer.c  the sequencer and the mixer, in the audio interrupt
+ *   screen.c     drawing: colours, the header, each page's body, the knobs' places
+ *   pages.c      what each page does with the knobs, the keys, SEQ and REC
+ *   view.c       the lights and the screen, from the main loop's state
+ *   juicy.c      the songs' places and the library in flash, the main loop: its state (ui) and its passes
+ *   drums.c, synth.c, pad.c, echo.c, reverb.c, limiter.c: the sound
  *
- * At power-on: the start screen, the orange big and the name, while a light runs over the lower keys from left to right
- * (2 s, or until a key, a button or a knob is touched: that does what it always does).
- *
- * The lights: a key or button that does something here glows dimly (a bar's four beats a bit brighter); it is fully lit when it is on, selected, or
- * holds something (a step that is set, a chain place with a pattern). The others are dark. On HOME's page, neither
- * SEL nor EDIT on, the song playing: the lower key of the step that sounds is lit, and OP1 .. OP4 show the bars of
- * the pattern that plays (glowing), the one that sounds lit.
- *
- * Rules of the road (the chip has no FPU and no libgcc): integers only, no float, no 64-bit division.
- * What platform.c offers: docs/API.md. The chip's rules: docs/RULES.md. tests/host.c and tests/web.c run this
- * file on a computer. */
+ * Rules of the road (the chip has no FPU and no libgcc): integers only, no float, no 64-bit division; the audio
+ * interrupt under half of its 5.8 ms (it peaks near a quarter). What platform.c offers: docs/API.md. The chip's rules:
+ * docs/RULES.md. tests/host.c and tests/web.c run this file on a computer; tests/regress.sh tells whether a change
+ * changed what it plays and shows. */
 #define APP_NAME "JUICY"                        /* the rescue and crash screens (platform.c) */
 #define CV_MAX (240u * 132u)                    /* the biggest canvas: a piano roll */
 #include <stddef.h>                             /* offsetof (the compiler's own, freestanding) */
@@ -88,6 +31,9 @@
 
 #include "song.c"
 #include "demos.c"
+#if defined(DINGHY_HOST) && !defined(HOST_WEB)
+#include "../../tests/test_song.c"              /* (on a computer: the host scripts' song) */
+#endif
 
 /* ---- the songs' places: four that are always there, the three demo songs and an empty one, and eight kept in flash
  * (a blob each, docs/API.md). The song that plays is none of them: it is a copy, kept as the settings. */

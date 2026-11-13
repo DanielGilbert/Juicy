@@ -6,7 +6,7 @@
 10 btn 6
 20 btn 11
 # KICK (the selected drum): step 5 (lower key 7) held, its kick is accented (and every drum on that step; the
-# first song accents the offbeats already: steps 3, 7, 11, 15)
+# test song accents the offbeats already: steps 3, 7, 11, 15)
 500 keys 0x80
 1400 keys 0
 # step 3 (lower key 4), empty, held: a kick goes there, accented. Step 8 (lower key 12) tapped: a plain kick

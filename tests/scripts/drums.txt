@@ -1,4 +1,4 @@
-# The drum track: play the first song, give the drums a second bar and fill it while it runs, take it away again
+# The drum track: play the test song, give the drums a second bar and fill it while it runs, take it away again
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/drums.txt
 # HOME: from the first page, JUICY, to the drums

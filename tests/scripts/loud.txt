@@ -1,4 +1,4 @@
-# As loud as the first song gets: pattern B (drums, the acid bass, the pad, ARP), both filters open, long decays
+# As loud as the test song gets: pattern B (drums, the acid bass, the pad, ARP), both filters open, long decays
 # (tests/host.c says what a line can do). Built with -DLIMITER_CEILING=12000 it shows the limiter at work.
 #   tests/run_host.sh tests/scripts/loud.txt
 # HOME: from the first page, JUICY, to the drums

@@ -70,7 +70,7 @@ The keys do one of three things, and two buttons switch between them:
 | | How | The keys |
 | --- | --- | --- |
 | **Play** | SEL and EDIT dark | play the track on the screen. DRUMS: the six lower keys from the left are the six drums. BASS, ARP, LEAD: all 27 keys are notes. PAD: a key plays the chord on that note. What you play last is what EDIT places. |
-| **Select** | SEL lit | **OP1 to OP5** pick DRUMS, BASS, ARP, PAD, LEAD. The five black keys an octave above them **mute** those tracks (lit: it plays). |
+| **Select** | SEL lit | **OP1 to OP5** pick DRUMS, BASS, ARP, PAD, LEAD. The five black keys an octave above them **mute** those tracks (lit: it plays): the pattern is not heard, the keys still are. Mutes are not saved. |
 | **Edit** | EDIT lit, the title orange | the 16 lower keys are the 16 steps of the bar on the screen (on JUICY: the 16 places of the chain). On DRUMS and a track a step key acts when you let go; **held** a moment, it accents the step (see **Accents** below). |
 
 SEL and EDIT are never on together: the one you press switches the other off. **Nothing in the song changes
@@ -82,7 +82,7 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | **HOME** | the JUICY screen, and back to the track |
 | **SAVE** | the SONGS screen, again the LIBRARY, again back |
 | **FX** | a track's pages in turn: its notes, its sound (not DRUMS), its mix. On JUICY: the **NAMES** screen and back |
-| **OCT- / OCT+** | the bar before / the next bar. With EDIT on a track: OCT+ past the last bar adds one (up to 4), **holding OCT-** removes the bar on the screen from that track. While recording: the keys an octave down / up (lit: they are) |
+| **OCT- / OCT+** | the bar before / the next bar. With EDIT on a track: OCT+ past the last bar adds one (up to 4), **holding OCT-** removes the bar on the screen from that track (its only bar: emptied). While recording: the keys an octave down / up (lit: they are) |
 | **PRESETS** (knob) | the pattern on the screen, A to H, on every screen |
 | **SEQ** | with EDIT: the chain on or off (lit: the chain plays; dark: the pattern on the screen loops) |
 | **REC** | on JUICY with EDIT: copies the pattern on the screen into the first empty one. On BASS, ARP, PAD, LEAD with EDIT: **step recording** on or off (REC lit, see below). **Holding REC** with EDIT clears: on JUICY the whole pattern on the screen, on DRUMS the selected drum (the orange row), on BASS, ARP, PAD, LEAD that track, in the pattern on the screen. The bars stay |
@@ -195,8 +195,10 @@ on the connected FM-1 (it asks before it writes). The first run also builds the 
 (`.venv`) with mido and python-rtmidi.
 
 `tests/run_host.sh` runs Juicy on your computer from a script of key presses and knob turns
-([tests/scripts/](tests/scripts/)): the sound as `build/host/juicy.wav`, the screen as PNGs. A browser version with a
-clickable FM-1: `sh web/build.sh` in the container, then `node web/serve.js` and <http://localhost:8137>.
+([tests/scripts/](tests/scripts/)): the sound as `build/host/juicy.wav`, the screen as PNGs. It starts with a song of
+its own, [tests/test_song.c](tests/test_song.c) (DEMO1 as it was), so a new demo song does not change what the scripts
+find. A browser version with a clickable FM-1: `sh web/build.sh` in the container, then `node web/serve.js` and
+<http://localhost:8137>.
 
 `tests/regress.sh` checks that a change to the code changed nothing it should not: it runs every host script and
 compares the sound, the screens and the MIDI out with a list kept before (`sh tests/regress.sh record` first, then

@@ -4,7 +4,7 @@
 # SAVE: the songs' page, place 1 selected, nothing there yet
 300 btn 9
 600 shot
-# REC: the first song is saved there (blob 0)
+# REC: the test song is saved there (blob 0)
 700 btn 13
 1100 shot
 # KNOB1 one back: an empty song. SEQ: it asks, SEQ again: loaded, and HOME's page shows a song without a chain
@@ -18,7 +18,7 @@
 2400 enc 2 1
 2500 btn 13
 2700 shot
-# KNOB1 on and back: the question is gone. SEQ twice: the first song is back, with its chain
+# KNOB1 on and back: the question is gone. SEQ twice: the test song is back, with its chain
 2800 enc 2 1
 2850 enc 2 -1
 2900 btn 11

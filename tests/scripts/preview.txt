@@ -9,7 +9,7 @@
 # KNOB1 one back: DEMO2 (uplifting, 138 BPM) from its start
 4000 enc 2 -1
 6000 shot
-# PLAY: stopped. HOME: the first song is the song (130 BPM, its chain)
+# PLAY: stopped. HOME: the test song is the song (130 BPM, its chain)
 7000 btn 12
 7300 btn 8
 7600 shot

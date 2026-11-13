@@ -378,12 +378,15 @@ static void platform_poll(void)                 /* one call = one millisecond */
     }
 }
 
+static void test_song_keep(void);               /* (tests/test_song.c: the scripts' song, kept before Juicy starts) */
+
 int main(int argc, char **argv)
 {
     if (argc > 1) host_out = argv[1];
     if (argc > 2) read_script(argv[2]);
     if (argc > 3) frame_fps = (uint32_t)atoi(argv[3]);
     perf_open();
+    test_song_keep();
     app_main();
     return 0;
 }

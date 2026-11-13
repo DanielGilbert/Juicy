@@ -1,4 +1,4 @@
-# The pad track: its page, the chords of the first song's pattern B (POWER chords: A2 A2 F2 G2), the cursor's
+# The pad track: its page, the chords of the test song's pattern B (POWER chords: A2 A2 F2 G2), the cursor's
 # chord changed, another chord placed further on in the bar (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/pad.txt
 # HOME: from the first page, JUICY, to the drums

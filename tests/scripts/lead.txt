@@ -1,4 +1,4 @@
-# The lead track: its page (the first song has no lead), a note placed, a note by hand that rings on
+# The lead track: its page (the test song has no lead), a note placed, a note by hand that rings on
 # (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/lead.txt
 # HOME: from the first page, JUICY, to the drums

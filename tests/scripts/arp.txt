@@ -1,4 +1,4 @@
-# The ARP track: its page, the arpeggio of the first song's pattern B (a hit every step, MODE UP 3 over the pad's
+# The ARP track: its page, the arpeggio of the test song's pattern B (a hit every step, MODE UP 3 over the pad's
 # POWER chords), MODE turned, a hit taken away (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/arp.txt
 # HOME: from the first page, JUICY, to the drums

@@ -2,7 +2,7 @@
 #   tests/run_host.sh tests/scripts/bass.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
-# The first song has an ACID bass line, two bars of sixteenths (steps 4 and 12 rest). One step at 130 BPM is 115 ms.
+# The test song has an ACID bass line, two bars of sixteenths (steps 4 and 12 rest). One step at 130 BPM is 115 ms.
 # SEQ: the chain off, pattern A alone (its drums one bar, the bass two, the others four: 7385 ms at 130 BPM)
 # EDIT: the lower keys are the steps. A track key (OP1 .. OP5) picks its page after SEL, EDIT then takes over again
 10 btn 6
