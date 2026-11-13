@@ -177,8 +177,9 @@ pattern (glowing), the one that sounds lit. A muted track's name is dark on its 
 
 ## Build it
 
-Juicy is one C file, [firmware/src/juicy.c](firmware/src/juicy.c), with its sound in `drums.c`, `synth.c`, `pad.c`,
-`echo.c`, `reverb.c` and `limiter.c`, on Dinghy's platform. The build runs in Docker (on Linux natively, as Dinghy
+Juicy is [firmware/src/juicy.c](firmware/src/juicy.c) (the panel, the pages, saving) with `song.c` (what a song holds),
+`demos.c`, `sequencer.c` (the sequencer and the mixer, in the audio interrupt) and `screen.c`, its sound in `drums.c`,
+`synth.c`, `pad.c`, `echo.c`, `reverb.c` and `limiter.c`, on Dinghy's platform. They build as one: `juicy.c` includes the rest. The build runs in Docker (on Linux natively, as Dinghy
 describes it):
 
 ```sh

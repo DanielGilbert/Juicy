@@ -1,0 +1,233 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* Juicy's demo songs: DEMO1 (the first song, what a new FM-1 plays), DEMO2, DEMO3. juicy.c includes it after
+ * song.c. */
+
+/* ---- the demo songs on the songs' page: DEMO1 (the first song), DEMO2, DEMO3 */
+static void song_notes(uint32_t pattern_index, uint32_t melodic, uint32_t bar, const uint8_t notes[STEPS_PER_BAR])
+{
+    uint32_t step;
+    for (step = 0; step < STEPS_PER_BAR; step++) song.patterns[pattern_index].notes[melodic][bar][step] = notes[step];
+}
+
+static void song_arp_hits(uint32_t pattern_index, uint32_t bar, uint32_t every)   /* ARP: a hit every that many steps */
+{
+    uint32_t step;
+    for (step = 0; step < STEPS_PER_BAR; step += every) song.patterns[pattern_index].notes[MELODIC_ARP][bar][step] = ARP_HIT;
+}
+
+static void song_bars(uint32_t pattern_index, uint32_t track, uint32_t bars)   /* track: 0 the drums, 1 + melodic */
+{
+    song.patterns[pattern_index].bar_totals[track] = (uint8_t)bars;
+}
+
+static void song_chain(const uint8_t *chain, uint32_t length)   /* letters A.. as 1.. */
+{
+    uint32_t place;
+    for (place = 0; place < length; place++) song.chain[place] = chain[place];
+}
+
+static void song_names(const char *song_name, const char *const *pattern_names, uint32_t count)   /* the song's, its first patterns' */
+{
+    uint32_t pattern;
+    name_set(song.name, song_name);
+    for (pattern = 0; pattern < count; pattern++) name_set(song.patterns[pattern].name, pattern_names[pattern]);
+}
+
+static void song_note(uint32_t pattern_index, uint32_t melodic, uint32_t bar, uint32_t step, uint32_t note, uint32_t steps, uint32_t gate)
+{   /* a note that many steps long (one step: gate tenths of it, 0 the whole step) */
+    uint32_t tied;
+    for (tied = 0; tied < steps && step + tied < STEPS_PER_BAR; tied++)
+        song.patterns[pattern_index].notes[melodic][bar][step + tied] = (uint8_t)(tied ? note | NOTE_TIE : note);
+    set_note_gate(song.patterns[pattern_index].gates[melodic][bar], step, steps == 1u ? gate : 0u);
+}
+
+static void song_chord(uint32_t pattern_index, uint32_t bar, uint32_t step, uint32_t chord)   /* chord: CHORD(root, PAD_CHORD_*) */
+{
+    song.patterns[pattern_index].notes[MELODIC_PAD][bar][step] = (uint8_t)chord;
+    set_note_gate(song.patterns[pattern_index].gates[MELODIC_PAD][bar], step, chord >> 8);
+}
+
+static void song_arp_steps(uint32_t pattern_index, uint32_t bar, uint32_t steps, uint32_t gate)   /* steps: bit s a hit */
+{
+    uint32_t step;
+    for (step = 0; step < STEPS_PER_BAR; step++)
+        if (steps >> step & 1u) song_note(pattern_index, MELODIC_ARP, bar, step, ARP_HIT, 1u, gate);
+}
+
+/* The first song (DEMO1, what a new FM-1 plays): acid techno, A, 130 BPM: an ACID bass in sixteenths with accents (the bite), POWER chords on the pad with a
+ * SQUARE arpeggio climbing them over three octaves, a break on the root alone with the arpeggio jumping octaves.
+ *   A  kick, hats, acid     B  A with clap, power chords, the arpeggio     C  B with open hats
+ *   D  the break: no kick, the root alone, random octaves, a snare roll */
+static void first_song(void)
+{
+    enum { A, B, C, D };
+    static const uint8_t ACID[2][STEPS_PER_BAR] = {   /* 0: rest */
+        {33, 33, 45, 0, 33, 36, 33, 45, 31, 33, 45, 0, 33, 40, 38, 36},
+        {33, 0, 45, 33, 36, 33, 43, 33, 33, 45, 0, 40, 33, 45, 48, 47}};
+    static const uint16_t ACID_ACCENTS[2] = {1u << 0 | 1u << 5 | 1u << 10 | 1u << 13, 1u << 0 | 1u << 5 | 1u << 9 | 1u << 14};
+    static const uint32_t POWER[BAR_COUNT] = {CHORD(45, PAD_CHORD_POWER), CHORD(45, PAD_CHORD_POWER), CHORD(41, PAD_CHORD_POWER), CHORD(43, PAD_CHORD_POWER)};
+    static const uint16_t ROLL[BAR_COUNT] = {0x1111, 0x5555, 0x5555, 0xFFFF};
+    static const uint8_t CHAIN[] = {A + 1, B + 1, C + 1, D + 1, C + 1, C + 1, A + 1};
+    uint32_t pattern, bar, step;
+    empty_song();
+    song.tempo = 130;
+    song.reverb = 30;
+    sound_apply(MELODIC_BASS, 2);               /* ACID */
+    sound_apply(MELODIC_ARP, 1);                /* SQUARE */
+    sound_apply(MELODIC_PAD, 1);                /* BRIGHT */
+    song.echo[MELODIC_ARP] = 50;
+    song.levels[MELODIC_PAD] = 70;
+    for (pattern = A; pattern <= D; pattern++) {
+        volatile pattern_t *p = &song.patterns[pattern];
+        for (bar = 0; bar < 2u; bar++) {
+            for (step = 0; step < STEPS_PER_BAR; step++)
+                if (ACID[bar][step]) song_note(pattern, MELODIC_BASS, bar, step, ACID[bar][step], 1, 6);
+            p->accents[1u + MELODIC_BASS][bar] = ACID_ACCENTS[bar];
+        }
+        song_bars(pattern, 1u + MELODIC_BASS, 2u);
+        for (bar = 0; pattern != A && bar < BAR_COUNT; bar++) {
+            song_chord(pattern, bar, 0, pattern == D ? CHORD(45, PAD_CHORD_ROOT) : POWER[bar]);
+            song_arp_steps(pattern, bar, pattern == D ? 0x5555 : 0xFFFF, 4);
+            p->accents[1u + MELODIC_ARP][bar] = 0x1111;
+        }
+        song_bars(pattern, 1u + MELODIC_ARP, BAR_COUNT);
+        song_bars(pattern, 1u + MELODIC_PAD, BAR_COUNT);
+        p->arp_mode = pattern == D ? ARP_MODE(ARP_ORDER_RANDOM, 3u) : ARP_MODE(ARP_ORDER_UP, 3u);
+        p->drum_hits[DRUM_HAT][0] = 0x4444;
+        p->accents[0][0] = 0x4444;
+        if (pattern != D) p->drum_hits[DRUM_KICK][0] = 0x1111;
+        if (pattern == B || pattern == C) p->drum_hits[DRUM_CLAP][0] = 0x1010;
+        if (pattern == C) p->drum_hits[DRUM_OPEN_HAT][0] = 0x4444;
+    }
+    song_bars(D, 0, BAR_COUNT);
+    for (bar = 0; bar < BAR_COUNT; bar++) {
+        song.patterns[D].drum_hits[DRUM_HAT][bar] = 0x4444;
+        song.patterns[D].drum_hits[DRUM_SNARE][bar] = ROLL[bar];
+        song.patterns[D].accents[0][bar] = bar == 3u ? 0x8888 : 0x4444;   /* the roll's last bar: a lift on each beat's end */
+    }
+    {
+        static const char *const NAMES[] = {"GROOVE", "POWER", "PEAK", "BREAK"};
+        song_names("ACID", NAMES, sizeof NAMES / sizeof NAMES[0]);
+    }
+    song_chain(CHAIN, sizeof CHAIN);
+}
+
+/* uplifting trance, D minor, 138 BPM: a galloping PLUCK bass, PLUCK arpeggios, a breakdown of pad and SUPERSAW,
+ * a build with a snare roll, the drop.
+ *   A  kick, hats, bass            B  A with clap, pad and arpeggio   C  the breakdown: pad and melody
+ *   D  the build: pad, arpeggio, the snare roll and toms        E  the drop: everything      F  the outro */
+static void demo_uplifting(void)
+{
+    enum { A, B, C, D, E, F };
+    static const uint8_t CHORDS[BAR_COUNT] = {50, CHORD(46, PAD_CHORD_MAJOR), CHORD(53, PAD_CHORD_MAJOR), CHORD(48, PAD_CHORD_MAJOR)};   /* Dm Bb F C */
+    static const uint8_t ROOTS[BAR_COUNT] = {38, 34, 29, 36};   /* D2 Bb1 F1 C2 */
+    static const uint8_t MELODY[BAR_COUNT][STEPS_PER_BAR] = {
+        {77, 0, 0, 0, 76, 0, 74, 0, 72, 0, 0, 0, 74, 0, 0, 0},
+        {74, 0, 0, 0, 72, 0, 70, 0, 69, 0, 0, 0, 70, 0, 0, 0},
+        {72, 0, 0, 0, 69, 0, 72, 0, 77, 0, 0, 0, 76, 0, 0, 0},
+        {76, 0, 0, 0, 74, 0, 72, 0, 79, 0, 76, 0, 74, 0, 72, 0}};
+    static const uint16_t ROLL[BAR_COUNT] = {0x1111, 0x5555, 0xFFFF, 0xFFFF};
+    static const uint8_t CHAIN[] = {A + 1, B + 1, B + 1, C + 1, C + 1, D + 1, E + 1, E + 1, F + 1};
+    uint32_t pattern, bar, step;
+    empty_song();
+    song.tempo = 138;
+    song.reverb = 40;
+    sound_apply(MELODIC_BASS, 0);               /* PLUCK */
+    sound_apply(MELODIC_ARP, 0);           /* PLUCK */
+    sound_apply(MELODIC_PAD, 0);                /* WARM, swelling slower */
+    song.sounds[MELODIC_PAD][2] = 70;
+    song.sounds[MELODIC_PAD][3] = 80;
+    sound_apply(MELODIC_LEAD, 0);               /* SUPERSAW */
+    song.cutoff[MELODIC_BASS] = 40;
+    song.echo[MELODIC_ARP] = 35;
+    song.echo[MELODIC_LEAD] = 50;
+    for (pattern = A; pattern <= F; pattern++) {
+        const int bass = pattern != C && pattern != D, arpeggio = pattern == B || pattern == D || pattern == E;
+        const int pad = pattern >= B, melody = pattern == C || pattern == E;   /* (B's pad: the chords for its arpeggio) */
+        for (bar = 0; bar < BAR_COUNT; bar++) {
+            for (step = 2; bass && step < STEPS_PER_BAR; step += 4u) {   /* the gallop: two sixteenths on each off-beat */
+                song.patterns[pattern].notes[MELODIC_BASS][bar][step] = ROOTS[bar];
+                song.patterns[pattern].notes[MELODIC_BASS][bar][step + 1u] = ROOTS[bar];
+            }
+            if (arpeggio) song_arp_hits(pattern, bar, 1u);
+            if (pad) song.patterns[pattern].notes[MELODIC_PAD][bar][0] = CHORDS[bar];
+            if (melody) song_notes(pattern, MELODIC_LEAD, bar, MELODY[bar]);
+        }
+        song_bars(pattern, 1u + MELODIC_BASS, BAR_COUNT);
+        song_bars(pattern, 1u + MELODIC_ARP, BAR_COUNT);
+        song_bars(pattern, 1u + MELODIC_PAD, BAR_COUNT);
+        song_bars(pattern, 1u + MELODIC_LEAD, BAR_COUNT);
+        song.patterns[pattern].arp_mode = ARP_MODE(ARP_ORDER_UP, 2u);   /* sixteenths up two octaves */
+        if (pattern != C && pattern != D) song.patterns[pattern].drum_hits[DRUM_KICK][0] = 0x1111;
+        if (pattern == A || pattern == B || pattern == F) song.patterns[pattern].drum_hits[DRUM_HAT][0] = 0x4444;
+        if (pattern == B || pattern == E) song.patterns[pattern].drum_hits[DRUM_CLAP][0] = 0x1010;
+        if (pattern == E) song.patterns[pattern].drum_hits[DRUM_OPEN_HAT][0] = 0x4444;
+    }
+    song_bars(D, 0, BAR_COUNT);
+    for (bar = 0; bar < BAR_COUNT; bar++) song.patterns[D].drum_hits[DRUM_SNARE][bar] = ROLL[bar];
+    song.patterns[D].drum_hits[DRUM_TOM][3] = 0xF000;   /* a tom fill over the roll's last four */
+    {
+        static const char *const NAMES[] = {"INTRO", "GROOVE", "BREAK", "BUILD", "DROP", "OUTRO"};
+        song_names("UPLIFT", NAMES, sizeof NAMES / sizeof NAMES[0]);
+    }
+    song_chain(CHAIN, sizeof CHAIN);
+}
+
+/* lo-fi / neo-soul, 84 BPM, swung: Dm7 G7 Cmaj7 and Asus4 resolving to Am7 on a WARM pad, a SOFT arpeggio down
+ * over them, a SUB bass, a lazy boom-bap with accented hats, a SOFT melody that leans on the sus.
+ *   A  pad and arpeggio     B  A with drums and bass     C  B with the melody     D  pad, melody, hats */
+static void demo_lofi(void)
+{
+    enum { A, B, C, D };
+    static const uint32_t CHORDS[BAR_COUNT] = {CHORD(50, PAD_CHORD_MINOR7), CHORD(55, PAD_CHORD_DOMINANT7), CHORD(48, PAD_CHORD_MAJOR7), CHORD(45, PAD_CHORD_SUS4)};
+    static const uint8_t ROOTS[BAR_COUNT] = {38, 31, 36, 33};   /* D2 G1 C2 A1 */
+    static const uint8_t LEAD[BAR_COUNT][3][3] = {   /* step, note, steps */
+        {{0, 69, 4}, {6, 72, 2}, {8, 74, 6}},
+        {{0, 77, 3}, {4, 74, 2}, {8, 71, 6}},
+        {{0, 76, 6}, {8, 74, 2}, {10, 72, 4}},
+        {{0, 74, 6}, {8, 72, 6}, {14, 0, 0}}};
+    static const uint8_t CHAIN[] = {A + 1, B + 1, C + 1, D + 1, C + 1, A + 1};
+    uint32_t pattern, bar, note;
+    empty_song();
+    song.tempo = 84;
+    song.reverb = 60;
+    sound_apply(MELODIC_BASS, 1);               /* SUB */
+    sound_apply(MELODIC_ARP, 3);                /* SOFT */
+    sound_apply(MELODIC_PAD, 0);                /* WARM */
+    sound_apply(MELODIC_LEAD, 2);               /* SOFT */
+    song.echo[MELODIC_ARP] = 55;
+    song.echo[MELODIC_LEAD] = 45;
+    for (pattern = A; pattern <= D; pattern++) {
+        volatile pattern_t *p = &song.patterns[pattern];
+        for (bar = 0; bar < BAR_COUNT; bar++) {
+            song_chord(pattern, bar, 0, CHORDS[bar]);
+            if (bar == 3u) song_chord(pattern, bar, 8, CHORD(45, PAD_CHORD_MINOR7));   /* the sus resolves */
+            if (pattern != D) song_arp_steps(pattern, bar, 0x5555, 7);   /* eighths */
+            if (pattern == B || pattern == C) {
+                song_note(pattern, MELODIC_BASS, bar, 0, ROOTS[bar], 6, 0);
+                song_note(pattern, MELODIC_BASS, bar, 7, ROOTS[bar], 1, 6);
+                song_note(pattern, MELODIC_BASS, bar, 10, ROOTS[bar] + 7u, 4, 0);
+            }
+            for (note = 0; (pattern == C || pattern == D) && note < 3u; note++)
+                if (LEAD[bar][note][2]) song_note(pattern, MELODIC_LEAD, bar, LEAD[bar][note][0], LEAD[bar][note][1], LEAD[bar][note][2], 0);
+            p->accents[1u + MELODIC_ARP][bar] = 0x0101;   /* the arpeggio leans on 1 and 3 */
+        }
+        song_bars(pattern, 1u + MELODIC_BASS, BAR_COUNT);
+        song_bars(pattern, 1u + MELODIC_ARP, BAR_COUNT);
+        song_bars(pattern, 1u + MELODIC_PAD, BAR_COUNT);
+        song_bars(pattern, 1u + MELODIC_LEAD, BAR_COUNT);
+        p->arp_mode = pattern == C ? ARP_MODE(ARP_ORDER_RANDOM, 2u) : ARP_MODE(ARP_ORDER_DOWN, 2u);
+        p->swing = 15;                          /* 65 % */
+        if (pattern == B || pattern == C) {
+            p->drum_hits[DRUM_KICK][0] = 0x0481;    /* 1, the "and" of 2, 3's "and" */
+            p->drum_hits[DRUM_SNARE][0] = 0x1010;
+        }
+        if (pattern != A) p->drum_hits[DRUM_HAT][0] = 0x5555;
+        p->accents[0][0] = 0x4444;              /* the offbeat hats */
+    }
+    {
+        static const char *const NAMES[] = {"INTRO", "GROOVE", "MELODY", "FLOAT"};
+        song_names("LO-FI", NAMES, sizeof NAMES / sizeof NAMES[0]);
+    }
+    song_chain(CHAIN, sizeof CHAIN);
+}
