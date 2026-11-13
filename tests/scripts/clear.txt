@@ -1,0 +1,36 @@
+# Clearing: REC held with EDIT on empties the selected drum on DRUMS, a track on its page, and on HOME's page the
+# whole pattern on the screen; the bars stay. A tap of REC on a track does nothing (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/clear.txt
+# HOME: to the drums. The 2nd lower key: HAT selected. EDIT on
+5 btn 8
+100 keys 0x4
+150 keys 0
+200 btn 6
+300 shot
+# REC tapped: nothing changes
+400 btn 13
+600 shot
+# REC held 700 ms: the hats are gone, the other drums stay
+700 btndown 13
+1400 btnup 13
+1500 shot
+# SEL, OP2, EDIT: the bass. REC held: its notes are gone, its bars stay
+1600 btn 3
+1620 keys 0x8
+1640 keys 0
+1660 btn 6
+1800 shot
+1900 btndown 13
+2600 btnup 13
+2700 shot
+# HOME: JUICY. REC held: pattern A is empty
+2800 btn 8
+2900 btndown 13
+3600 btnup 13
+3700 shot
+# SEL, OP1: the drums of pattern A, no hit left
+3800 btn 3
+3820 keys 0x2
+3840 keys 0
+4000 shot
+4500 end

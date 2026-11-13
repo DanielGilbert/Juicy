@@ -62,7 +62,7 @@ DATA_FAMILY = "JUICY"               # the SMK store's owner tag (store.h): 1..7 
 SCREEN_NAME = "JUICY"               # the update loader's screen (FM-1, ldr_screen.c): the name and its colour (RGB565)
 SCREEN_COLOUR = 0xFC60              # orange, #FF8C00
 PRODUCT = "FM-1_940"                # Juicy: 94N (OUR_LOADER in the installer wants FM-1_9NN). Your fork: pick your own
-VERSION = None                      # APP_VER for release builds
+VERSION = None                      # APP_VER: --release X.Y, else the VERSION file + "-dev"
 
 
 def toolchain():
@@ -167,7 +167,7 @@ def build_loader():
 
 def build_app():
     flags = [*CFLAGS, *BOARD_DEFS[BOARD], "-Ifirmware/hal", "-Ifirmware/src", "-Ifirmware/gen", f'-DFELUCCA_ID="{PRODUCT}"',
-             f'-DAPP_VER="{VERSION or "0.0"}"']
+             f'-DAPP_VER="{VERSION}"']
     if BOARD == "smk37":
         if not re.fullmatch(r"[A-Z0-9]{1,7}", DATA_FAMILY):
             raise SystemExit("DATA_FAMILY: 1..7 of A-Z 0-9")
@@ -327,6 +327,8 @@ def main():
         PRODUCT = BOARD_PREFIX[BOARD] + m[2]
         VERSION = m[1] + "." + m[2] + (m[3] or "")
         name = f"juicy-{a.release}{suffix}.fwsc"
+    else:                           # a dev build: the version it leads to, identity ..._940 as before
+        VERSION = (SRC / "VERSION").read_text().strip() + "-dev"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:

@@ -1,0 +1,34 @@
+# Step recording: with EDIT on, a tap of REC on a track's notes; a key puts its note at the cursor, which moves on by
+# LENGTH, SELECT moves it over a rest, OCT+ moves the keys an octave up (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/record.txt
+# SEL, OP2: the bass. PRESETS five on: the empty pattern F. EDIT, SEQ: the chain off. LENGTH 2. REC: recording
+5 btn 3
+20 keys 0x8
+40 keys 0
+60 enc 6 5
+100 btn 6
+200 btn 11
+300 enc 5 1
+400 btn 13
+500 shot
+# F1, G1, A1 (the 1st, 3rd and 5th key) on steps 1, 3, 5; SELECT two on: a rest; C2 (the 8th key) on 9
+600 keys 0x1
+650 keys 0
+700 keys 0x4
+750 keys 0
+800 keys 0x10
+850 keys 0
+900 enc 0 2
+1000 keys 0x80
+1050 keys 0
+# OCT+: the keys an octave up; F2 on 11
+1100 btn 1
+1200 keys 0x1
+1250 keys 0
+1300 shot
+# REC again: recording off, the keys are the steps again. PLAY a bar
+1400 btn 13
+1500 shot
+1600 btn 12
+3400 btn 12
+3700 end

@@ -1,12 +1,11 @@
-# The reverb: a note by hand on the sequence track (its ECHO at 0) leaves a tail of about two seconds; with
+# The reverb: a note by hand on the ARP track (its ECHO at 0) leaves a tail of about two seconds; with
 # REVERB at 0 it leaves none (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/reverb.txt
 # HOME: from the first page, JUICY, to the drums
 5 btn 8
 # EDIT: the knobs, SEQ and REC work only with it
 10 btn 6
-# OP3: the sequence track. FX twice: its mix page, KNOB4: ECHO down to 0, FX: its notes. KNOB1 one note up (C#4):
-# it sounds for 200 ms
+# OP3: the ARP track. FX twice: its mix page (where the keys play), KNOB4: ECHO down to 0. C#4 (key 8) for 200 ms
 290 btn 3
 300 keys 0x20
 350 keys 0
@@ -14,17 +13,19 @@
 380 btn 2
 390 btn 2
 400 enc 5 -40
-410 btn 2
-1000 enc 2 1
-# HOME, KNOB4: REVERB from 35 to 100, HOME. The next note (D4)
+1000 keys 0x100
+1200 keys 0
+# HOME, KNOB2: REVERB from 35 to 100, HOME. The next note (D4, key 9)
 4000 btn 8
-4100 enc 5 65
+4100 enc 3 65
 4200 shot
 4300 btn 8
-5000 enc 2 1
-# HOME, KNOB4: REVERB to 0, HOME. The next note (D#4)
+5000 keys 0x200
+5200 keys 0
+# HOME, KNOB2: REVERB to 0, HOME. The next note (D#4, key 10)
 8000 btn 8
-8100 enc 5 -100
+8100 enc 3 -100
 8300 btn 8
-9000 enc 2 1
+9000 keys 0x400
+9200 keys 0
 13000 end

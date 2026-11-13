@@ -7,7 +7,7 @@
 10 btn 6
 20 btn 11
 100 btn 12
-# SEL; bass, sequence, pad and lead muted: the drums alone from the next step on (the tails ring out)
+# SEL; bass, ARP, pad and lead muted: the drums alone from the next step on (the tails ring out)
 2000 btn 3
 2050 keys 0x528000
 2100 keys 0

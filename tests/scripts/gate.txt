@@ -1,0 +1,28 @@
+# Notes shorter than a step: LENGTH (KNOB4) below one step is 10 .. 90 % of it; such a note lets go within its step
+# and is narrower in the roll (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/gate.txt
+# SEL, OP2: the bass. PRESETS five on: the empty pattern F. EDIT, SEQ: the chain off, F loops
+5 btn 3
+20 keys 0x8
+40 keys 0
+60 enc 6 5
+100 btn 6
+200 btn 11
+# DECAY up: the bass holds its notes. Step 1: a whole step (LENGTH 1). Each time SELECT two on first, to an empty
+# step (the knobs set the next note there, not the one just placed): LENGTH 50 %, step 5; LENGTH 10 %, step 9
+250 enc 4 70
+300 keys 0x1
+350 keys 0
+380 enc 0 2
+400 enc 5 -5
+500 keys 0x80
+550 keys 0
+580 enc 0 2
+600 enc 5 -4
+700 keys 0x4000
+750 keys 0
+800 shot
+# PLAY a bar
+1000 btn 12
+2800 btn 12
+3200 end

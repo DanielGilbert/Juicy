@@ -18,9 +18,9 @@
 1000 keys 0x4
 1050 keys 0
 1400 shot
-# HOME, KNOB3 five back: A, then OP1: its kick has no step 2
+# HOME, PRESETS five back: A, then OP1: its kick has no step 2
 1500 btn 8
-1600 enc 4 -5
+1600 enc 6 -5
 1690 btn 3
 1700 keys 0x2
 1750 keys 0

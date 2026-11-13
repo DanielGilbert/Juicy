@@ -1,0 +1,32 @@
+# Notes on a track: a step key puts the next note there (LENGTH steps long) or takes a note away; SELECT moves the
+# cursor, and with EDIT the knobs change the note under it (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/length.txt
+# SEL, OP2: the bass. PRESETS five on: the empty pattern F. EDIT, SEQ: the chain off, F loops
+5 btn 3
+20 keys 0x8
+40 keys 0
+60 enc 6 5
+100 btn 6
+200 btn 11
+# LENGTH 4 (the cursor on an empty step: for the next note), step 1: A1 on 1..4
+300 enc 5 3
+400 keys 0x1
+450 keys 0
+# the cursor on it: LENGTH 2, NOTE three up: C2 on 1..2
+500 enc 5 -2
+600 enc 2 3
+700 shot
+# SELECT eight on: step 9, empty (the knobs: the next note, C2, 2). Step 9: C2 on 9..10; LENGTH up: to the bar's end
+800 enc 0 8
+900 keys 0x4000
+950 keys 0
+1000 enc 5 10
+1100 shot
+# step 13, inside that note: all of it goes
+1200 keys 0x200000
+1250 keys 0
+1300 shot
+# PLAY a bar
+1400 btn 12
+3200 btn 12
+3500 end

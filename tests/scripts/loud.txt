@@ -16,7 +16,7 @@
 450 keys 0
 500 enc 3 55
 550 enc 4 60
-# OP3: the sequence track, CUTOFF and DECAY up
+# OP3: the ARP track, CUTOFF and DECAY up
 590 btn 3
 600 keys 0x20
 650 keys 0

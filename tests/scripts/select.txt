@@ -13,7 +13,7 @@
 2000 keys 0x10
 2050 keys 0
 2400 shot
-# SEL, OP3, SEL: the sequence track. The key A3 (key 4) held for a second: A3 sounds from 3000 to 4000 and is the
+# SEL, OP3, SEL: the ARP track. The key A3 (key 4) held for a second: A3 sounds from 3000 to 4000 and is the
 # selected note; nothing is put into the pattern
 2600 btn 3
 2650 keys 0x20
@@ -22,7 +22,7 @@
 3000 keys 0x10
 4000 keys 0
 4500 shot
-# EDIT: the lower key 2 puts A3 on step 2, without a key playing
+# EDIT: the lower key 2 puts a hit on step 2 (ARP: silently)
 5000 btn 6
 5100 keys 0x4
 5150 keys 0
