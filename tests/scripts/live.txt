@@ -1,0 +1,35 @@
+# Live recording: REC with EDIT on a track's notes, then PLAY: the keys' notes land on the nearest step, as long as
+# they were held, and sound at once (not twice). One GLO takes the whole take back (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/live.txt
+# HOME, EDIT, SEQ: the chain off, pattern A (130 BPM: a step is 115 ms)
+5 btn 8
+10 btn 6
+20 btn 11
+# SEL, OP5, EDIT: the lead (empty); REC: recording; PLAY at 500 (step n starts at 500 + 115.4 n)
+290 btn 3
+300 keys 0x400
+350 keys 0
+360 btn 6
+400 btn 13
+500 btn 12
+# C a bit late on step 3, held two steps
+856 keys 0x80
+1087 keys 0
+# D a bit early for step 7, short (a quarter of a step: 2 or 3 tenths)
+1278 keys 0x200
+1338 keys 0
+# legato: C on step 9, D on step 11 while C is still down, both let go on step 13
+1543 keys 0x80
+1773 keys 0x280
+2005 keys 0
+2200 shot
+# the second time round (2346 .. 4192): the notes play from the pattern
+2400 shot
+# GLO: the whole take goes (UNDO over the roll); 2 s later the roll is empty
+4300 btn 7
+4400 shot
+6500 shot
+# GLO again: the take is back
+6600 btn 7
+8800 shot
+8900 end

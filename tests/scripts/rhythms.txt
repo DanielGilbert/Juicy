@@ -1,0 +1,43 @@
+# Bass lines and ARP rhythms: on BASS and ARP with EDIT, ALGORITHM plays a suggestion in place of the track's notes,
+# its name over the roll for 2 s (REC lit, nothing kept yet). A bass line is made of the pad's chords: their roots,
+# octaves and fifths. REC keeps it (asked again over notes), another page, PRESETS or EDIT off: the notes back
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/rhythms.txt
+# HOME, EDIT, SEQ: the chain off; PRESETS one on: pattern B (POWER chords A A F G); PLAY
+5 btn 8
+10 btn 6
+20 btn 11
+30 enc 6 1
+100 btn 12
+# SEL, OP2, EDIT: the bass
+290 btn 3
+300 keys 0x8
+350 keys 0
+360 btn 6
+900 shot
+# ALGORITHM one on: OFFBEAT, its name over the roll; 2 s later the roll: A1 on each beat's "and"
+1000 enc 1 1
+1300 shot
+3500 shot
+# ALGORITHM four on: ACID; SELECT to bar 3: F (the pad's F chord), its octave and fifth
+4000 enc 1 4
+4100 enc 0 32
+6500 shot
+# REC: the bass held notes, so it asks; REC again: kept
+7000 btn 13
+7200 shot
+7400 btn 13
+9600 shot
+# SEL, OP3, EDIT: ARP. ALGORITHM three on: SYNCOPATED
+9700 btn 3
+9710 keys 0x20
+9750 keys 0
+9760 btn 6
+10000 enc 1 3
+12500 shot
+# ALGORITHM one on: GATE; EDIT off: the arpeggio's own hits back
+13000 enc 1 1
+13200 btn 6
+15500 shot
+16000 btn 12
+16500 end

@@ -1,0 +1,26 @@
+# Styles: on the songs' page with NEW selected, KNOB2 (STYLE) picks what a new song starts as: EMPTY, or a song in
+# that style (INTRO BUILD DROP BREAK BUILD DROP OUTRO, each part with a groove, chords, bass and arpeggio; the lead
+# left free). PLAY listens to it, SEQ twice loads it (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/styles.txt
+# SAVE: the songs' page, place 1. KNOB1 one back: NEW, EMPTY
+300 btn 9
+400 enc 2 -1
+600 shot
+# KNOB2 one on: TRANCE. PLAY: it plays (138 BPM, from INTRO)
+700 enc 3 1
+900 shot
+1000 btn 12
+3000 shot
+# KNOB2 one on: TECHNO plays instead
+3500 enc 3 1
+5500 shot
+# PLAY: stopped. KNOB2 one on: LOFI. SEQ twice: loaded, JUICY shows its chain
+6000 btn 12
+6300 enc 3 1
+6400 btn 11
+6500 btn 11
+6800 shot
+# PRESETS two on: pattern C, the DROP
+7000 enc 6 2
+7300 shot
+7500 end

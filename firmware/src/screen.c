@@ -214,9 +214,10 @@ enum { SONGS_NOTE_NONE, SONGS_NOTE_LOAD_ASKED, SONGS_NOTE_SAVE_ASKED, SONGS_NOTE
 
 static const char *const PLACE_NAMES[PLACE_COUNT] = {"DEMO1", "DEMO2", "DEMO3", "NEW", "1", "2", "3", "4", "5", "6", "7", "8"};
 
-/* the songs' places: a box each (D a demo song, N an empty one, 1..8 those kept), light where there is a song,
- * orange the selected one; what SEQ, REC and PLAY do with it (previewing: it plays), or what has just happened */
-static void draw_songs(uint32_t selected_place, uint32_t places_with_song, const uint8_t place_names[PLACES_KEPT][NAME_LENGTH], uint32_t note, int previewing)
+/* the songs' places: a box each (D a demo song, N a new one, 1..8 those kept), light where there is a song, orange
+ * the selected one; what SEQ, REC and PLAY do with it (previewing: it plays), or what has just happened. new_song:
+ * what NEW is (its style's description) */
+static void draw_songs(uint32_t selected_place, uint32_t places_with_song, const uint8_t place_names[PLACES_KEPT][NAME_LENGTH], uint32_t note, int previewing, const char *new_song)
 {
     static const char *const NOTES[] = {"", "SEQ AGAIN: LOAD IT", "REC AGAIN: SAVE OVER IT", "SAVING", "SAVED", "PRESS STOP FIRST"};
     const int has_song = places_with_song >> selected_place & 1u;
@@ -226,7 +227,7 @@ static void draw_songs(uint32_t selected_place, uint32_t places_with_song, const
     cv_begin(240, CHAIN_HEIGHT, C_BLACK);
     if (named) name_text(song_name, place_names[selected_place - PLACE_FIRST_KEPT]);
     cv_text(4, 0, &FONT_S, selected_place == PLACE_DEMO ? "DEMO 1: ACID TECHNO" : selected_place == PLACE_DEMO2 ? "DEMO 2: UPLIFTING"
-                           : selected_place == PLACE_DEMO3 ? "DEMO 3: LO-FI" : selected_place == PLACE_NEW ? "AN EMPTY SONG"
+                           : selected_place == PLACE_DEMO3 ? "DEMO 3: LO-FI" : selected_place == PLACE_NEW ? new_song
                            : named ? song_name : has_song ? "A SONG OF YOURS" : "NOTHING HERE YET", named ? C_WHITE : C_LABEL);
     for (place = 0; place < PLACE_COUNT; place++) {
         char letter[2] = {PLACE_NAMES[place][0], 0};
@@ -239,6 +240,7 @@ static void draw_songs(uint32_t selected_place, uint32_t places_with_song, const
     else {
         if (has_song) cv_text(4, 60, &FONT_S, "SEQ: LOAD THIS SONG", C_LABEL);
         if (selected_place >= PLACE_FIRST_KEPT) cv_text(4, 80, &FONT_S, "REC: SAVE YOUR SONG HERE", C_LABEL);
+        if (selected_place == PLACE_NEW) cv_text(4, 80, &FONT_S, "KNOB2: A STYLE TO START IN", C_LABEL);
         if (has_song) cv_text(4, 100, &FONT_S, previewing ? "PLAY: STOP LISTENING" : "PLAY: LISTEN TO IT", previewing ? C_ACCENT : C_LABEL);
     }
     cv_blit(0, BODY_TOP);
@@ -436,6 +438,18 @@ static void draw_roll_marker(uint32_t marked_step)      /* under the roll, so th
     cv_begin(240, 3, C_BLACK);
     if (marked_step != NO_STEP) cv_rect(step_x(marked_step), 0, 12, 3, C_WHITE);
     cv_blit(0, BODY_TOP + ROLL_HEIGHT + 2u);
+}
+
+/* a box in the middle of the body, over what is there: a small label above a big word (what a turn or a press did) */
+#define OVERLAY_WIDTH 200u
+#define OVERLAY_HEIGHT 72u
+static void draw_overlay(const char *label, const char *text)
+{
+    cv_begin(OVERLAY_WIDTH, OVERLAY_HEIGHT, C_ACCENT);
+    cv_rect(2, 2, OVERLAY_WIDTH - 4u, OVERLAY_HEIGHT - 4u, C_BLACK);   /* (an orange frame) */
+    cv_text(((int32_t)OVERLAY_WIDTH - text_w(&FONT_S, label)) / 2, 8, &FONT_S, label, C_LABEL);
+    cv_text(((int32_t)OVERLAY_WIDTH - text_w(&FONT_L, text)) / 2, 30, &FONT_L, text, C_WHITE);
+    cv_blit((240u - OVERLAY_WIDTH) / 2u, BODY_TOP + (ROLL_HEIGHT - OVERLAY_HEIGHT) / 2u);
 }
 
 /* knob 0..3: the place of KNOB1..KNOB4. Numbers and notes are big; a word (too wide for that) is small */

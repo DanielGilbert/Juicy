@@ -1,5 +1,6 @@
 # Undo: GLO brings back the song as it was before the last change, GLO again the change (changes less than a second
-# apart are one). Stopped, on the drums with EDIT (tests/host.c says what a line can do).
+# apart are one); for 2 s a box says UNDO or REDO over the page. Stopped, on the drums with EDIT (tests/host.c says
+# what a line can do).
 #   tests/run_host.sh tests/scripts/undo.txt
 # HOME: to the drums. EDIT: the lower keys are the steps
 5 btn 8
@@ -27,4 +28,6 @@
 4800 shot
 5000 btn 7
 5300 shot
-5500 end
+# The box gone: the drums as at 1000
+7500 shot
+8000 end

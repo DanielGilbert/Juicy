@@ -99,21 +99,44 @@ groove or a progression plays. Script: `tests/scripts/undo.txt`.
   `song_changed` (in pages.c / juicy.c), undo swaps it back.
 - **Open:** which button; whether undo of an undo (redo) is the same press (suggestion: yes, a swap).
 
-### 5. [ ] Bass and ARP rhythms that follow the pad
+### 5. [x] Bass and ARP rhythms that follow the pad
+
+**Done 2026-11-14 (built, flashed, liked on the device).** Decided on the way: a text **overlay** first (a box
+over the body for 2 s, `overlay_show` in juicy.c, `draw_overlay` in screen.c; the body is not drawn meanwhile and is
+drawn again after), as the knob places are full on BASS and ARP; GLO uses it too (UNDO / REDO). ALGORITHM picks, the
+overlay names it; it works as the progressions do (PAD's KNOB4, BASS's and ARP's ALGORITHM share one "suggestion" in
+juicy.c / pages.c, the tables in demos.c). A bass line takes the pad's bars, an ARP rhythm is one bar. Script:
+`tests/scripts/rhythms.txt`.
 
 - **On BASS, ALGORITHM** picks a bass line made from the pad's chord roots: OFFBEAT (trance), OCTAVES, GALLOP,
   ROLLING (sixteenths), ACID (with accents). Never a wrong note: the notes come from the chords.
 - **On ARP, ALGORITHM** picks a rhythm of hits: STRAIGHT, SYNCOPATED, TRANCE GATE, EIGHTHS.
 - Asks twice over existing notes. **Storage:** none.
 
-### 6. [ ] Song templates
+### 6. [x] Song templates
+
+**Done 2026-11-14 (built, flashed, "for now, it's fine" on the device).** Decided on the way: called **styles**, picked with **KNOB2** (STYLE) on SONGS when NEW is selected (PLAY
+listens, SEQ loads); filled, not empty: each part gets the style's groove, progression, bass line and ARP rhythm
+(steps 2, 3, 5), the parts differ by which tracks play (INTRO drums + bass, BUILD drums with a FILL + pad + arp, DROP
+all, BREAK pad + arp, OUTRO drums + pad), the LEAD stays empty. TRANCE (D minor 138, EPIC, GALLOP), TECHNO (A minor
+130, MINIMAL, ACID), LOFI (C major 84 swung, LOFI, OCTAVES). `style_song` in demos.c. Script:
+`tests/scripts/styles.txt`. If it is too much: drop the bass and arp, keep the structure (the plan below).
 
 - **NEW from a template** on the SONGS page: the chain as INTRO, BUILD, DROP, BREAK, DROP, OUTRO, with the patterns
   prepared for each part (named, the break without kick, the build with a fill) but without notes, so the player fills
   them in (or uses steps 2, 3 and 5).
 - **Storage:** none (built in code like the demos).
 
-### 7. [ ] Live recording
+### 7. [x] Live recording
+
+**Done 2026-11-14 (built, flashed, works on the device).** Decided on the way: **REC while playing** (the same
+recording as step recording: stopped, at the cursor; playing, live), **no count-in** (the loop goes round, come in
+any time), **overdub** (a new note goes over what it covers, the bar as it was keeps the rest). A key sounds at once
+and lands on the nearest step's sound (a swung step's too); played a bit early, the step does not start it again
+(`live_starts` in sequencer.c). Held, the note grows a step ahead of the song so the steps it covers do not cut it;
+let go, it is as long as it was held (under a step: in tenths). A take is one change for GLO. The screen follows the
+playing bar; with the chain on, only the pattern on the screen records while it plays. Script:
+`tests/scripts/live.txt`.
 
 - Recording while the song plays: keys played land on the nearest step (with the LENGTH they were held), with a
   one-bar count-in (PLAY's light, or a click). Today there is only step recording.
@@ -131,7 +154,7 @@ groove or a progression plays. Script: `tests/scripts/undo.txt`.
   488 B; the library holds 16 patterns in a 16 KB slot. Tables (grooves, progressions) cost flash, not storage.
 - **Audio:** the audio interrupt peaks at 24 % of its 5.8 ms (measured 2026-11-13); [RULES.md](RULES.md) asks for
   under 50 %.
-- **Free controls:** ALGORITHM outside the sound pages, the ENV, LFO and ARP buttons (step 4 takes GLO), JUICY's KNOB4 (step 1
+- **Free controls:** ALGORITHM on JUICY, DRUMS, PAD and LEAD (step 5 takes it on BASS and ARP), the ENV, LFO and ARP buttons (step 4 takes GLO), JUICY's KNOB4 (step 1
   takes it), the upper keys outside OP1 .. OP5 and the mute keys.
 - **Where code goes:** a page's knobs and keys in `pages.c`, what it shows in `view.c`, the data in `song.c`, the
   demo songs in `demos.c` (see the file map at the top of `firmware/src/juicy.c`).

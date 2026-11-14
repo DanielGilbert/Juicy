@@ -412,26 +412,29 @@ static int drums_kept_empty(const drums_kept_t *kept)   /* (no hit: nothing to a
     return 1;
 }
 
-typedef struct {                                /* a pattern's pad, kept aside (while a progression plays in its place) */
+typedef struct {                                /* a pattern's melodic track, kept aside (while a suggestion plays in its place) */
     uint8_t notes[BAR_COUNT][STEPS_PER_BAR], gates[BAR_COUNT][STEPS_PER_BAR / 2u];
+    uint16_t accents[BAR_COUNT];
     uint8_t bars;
-} pad_kept_t;
+} track_kept_t;
 
-static void pad_keep(const volatile pattern_t *pattern, pad_kept_t *kept)
+static void track_keep(const volatile pattern_t *pattern, uint32_t melodic, track_kept_t *kept)
 {
-    memcpy(kept->notes, (const void *)pattern->notes[MELODIC_PAD], sizeof kept->notes);
-    memcpy(kept->gates, (const void *)pattern->gates[MELODIC_PAD], sizeof kept->gates);
-    kept->bars = pattern->bar_totals[1u + MELODIC_PAD];
+    memcpy(kept->notes, (const void *)pattern->notes[melodic], sizeof kept->notes);
+    memcpy(kept->gates, (const void *)pattern->gates[melodic], sizeof kept->gates);
+    memcpy(kept->accents, (const void *)pattern->accents[1u + melodic], sizeof kept->accents);
+    kept->bars = pattern->bar_totals[1u + melodic];
 }
 
-static void pad_put_back(volatile pattern_t *pattern, const pad_kept_t *kept)
+static void track_put_back(volatile pattern_t *pattern, uint32_t melodic, const track_kept_t *kept)
 {
-    memcpy((void *)pattern->notes[MELODIC_PAD], kept->notes, sizeof kept->notes);
-    memcpy((void *)pattern->gates[MELODIC_PAD], kept->gates, sizeof kept->gates);
-    pattern->bar_totals[1u + MELODIC_PAD] = kept->bars;
+    memcpy((void *)pattern->notes[melodic], kept->notes, sizeof kept->notes);
+    memcpy((void *)pattern->gates[melodic], kept->gates, sizeof kept->gates);
+    memcpy((void *)pattern->accents[1u + melodic], kept->accents, sizeof kept->accents);
+    pattern->bar_totals[1u + melodic] = kept->bars;
 }
 
-static int pad_kept_empty(const pad_kept_t *kept)   /* (no chord: nothing to ask about before it is replaced) */
+static int track_kept_empty(const track_kept_t *kept)   /* (no note: nothing to ask about before it is replaced) */
 {
     uint32_t bar, step;
     for (bar = 0; bar < BAR_COUNT; bar++)

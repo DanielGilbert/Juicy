@@ -85,9 +85,9 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | **OCT- / OCT+** | the bar before / the next bar. With EDIT on a track: OCT+ past the last bar adds one (up to 4), **holding OCT-** removes the bar on the screen from that track (its only bar: emptied). While recording: the keys an octave down / up (lit: they are) |
 | **PRESETS** (knob) | the pattern on the screen, A to H, on every screen |
 | **SEQ** | with EDIT: the chain on or off (lit: the chain plays; dark: the pattern on the screen loops) |
-| **REC** | on JUICY with EDIT: copies the pattern on the screen into the first empty one. On BASS, ARP, PAD, LEAD with EDIT: **step recording** on or off (REC lit, see below). **Holding REC** with EDIT clears: on JUICY the whole pattern on the screen, on DRUMS the selected drum (the orange row), on BASS, ARP, PAD, LEAD that track, in the pattern on the screen. The bars stay |
-| **GLO** | **undo**: the song as it was before the last change (glows when there is one; changes less than a second apart count as one, a song loaded too). GLO again brings the change back. Not while a preview, a groove or a progression plays |
-| **ALGORITHM** (knob) | on a sound page with EDIT: the next or previous sound |
+| **REC** | on JUICY with EDIT: copies the pattern on the screen into the first empty one. On BASS, ARP, PAD, LEAD with EDIT: **recording** on or off (REC lit, see below: stopped, step by step; playing, live). **Holding REC** with EDIT clears: on JUICY the whole pattern on the screen, on DRUMS the selected drum (the orange row), on BASS, ARP, PAD, LEAD that track, in the pattern on the screen. The bars stay |
+| **GLO** | **undo**: the song as it was before the last change (glows when there is one; changes less than a second apart count as one, a song loaded too, a take recorded live too). GLO again brings the change back; a box over the page says UNDO or REDO. Not while a preview, a groove, a progression, a bass line or a rhythm plays |
+| **ALGORITHM** (knob) | on a sound page with EDIT: the next or previous sound. On BASS and ARP with EDIT: a bass line or a rhythm (see **Bass lines and ARP rhythms** below) |
 | **SELECT** (knob) | on DRUMS: the drum the keys edit (the orange row), also on its mix page. On BASS, ARP, PAD, LEAD: the **cursor**, a step framed in the roll, on through the track's bars (EDIT or not; with EDIT its key blinks). Stopped, the note it comes to sounds (not on ARP) |
 | **MASTER** (knob) | the volume of the FM-1 itself. Over USB the FM-1 is also a sound card that a computer or phone records from, always at full level: turn MASTER down to record with a silent FM-1 |
 
@@ -103,7 +103,7 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | **PAD** | NOTE (the chord's root) | CUTOFF | CHORD: AUTO (with a key: the chord the key has on that note), MIN, MAJ, MIN7, MAJ7, DOM7, SUS2, SUS4, DIM, POWER (root and fifth), ROOT (the root alone) | CHORDS: a well-known progression plays in place of the chords (see **Chord progressions** below) | a chord sounds until the next one. See **Notes** below |
 | **Sound page** (FX) | WAVE | RESO | ATTACK | ENV | the pad's: SPREAD, RESO, ATTACK, RELEASE. A `*` after the name: changed. With EDIT, **SEQ** keeps the sound as USER1, **REC** as USER2 (each asks twice). The keys always play here |
 | **Mix page** (FX) | LEVEL (DRUMS: the selected drum's, the orange row) | PAN | REVERB | ECHO | bars for each; on DRUMS one per drum. The keys always play here (on DRUMS: a key or SELECT picks the drum) |
-| **SONGS** (SAVE) | DEMO1 to DEMO3, NEW (empty), 1 to 8 | | | | **SEQ** loads (asks twice), **REC** saves your song there (twice over a song), **PLAY** lets you listen first. No EDIT needed; loading and saving only while stopped. A kept song shows its name |
+| **SONGS** (SAVE) | DEMO1 to DEMO3, NEW, 1 to 8 | on NEW: STYLE, what a new song starts as (see **Styles** below) | | | **SEQ** loads (asks twice), **REC** saves your song there (twice over a song), **PLAY** lets you listen first. No EDIT needed; loading and saving only while stopped. A kept song shows its name |
 | **LIBRARY** (SAVE twice) | place 1 to 16 (or a lower key) | | | | **SEQ** puts that pattern into the pattern on the screen (twice if that holds something; works while playing), **REC** stores the pattern on the screen there (while stopped), **PLAY** lets you listen first. A library pattern is its notes, hits, swing and name; it plays with the song's sounds |
 
 ### Notes
@@ -117,6 +117,10 @@ On BASS, ARP, PAD and LEAD, with EDIT on:
 - **Step recording** (a tap of REC, it lights up): the keys play, and each key puts its note at the cursor with the
   LENGTH shown, then the cursor moves on by that length (on PAD: a bar), round the track's bars. Turn SELECT for a
   rest. OCT- / OCT+ move the keys an octave (they stay there when recording ends). REC again or EDIT off ends it.
+- **Live recording** (the same, while the song plays): a key's note sounds at once and lands on the nearest step (a
+  bit early: the step coming), as long as you hold the key (shorter than a step: 10 % to 90 % of one; on PAD the chord
+  holds until the next). The notes there stay, a new one goes over what it covers. The screen follows the bar that
+  plays; only the pattern on the screen records, while it is the one that plays. **GLO** takes the whole take back.
 
 ### Listening before you load
 
@@ -173,6 +177,36 @@ chord sounds). Nothing is changed yet, REC is lit:
 - **REC** keeps it: the pad gets its bars, a chord on each. If the pad held chords, REC asks once more (REC AGAIN).
 - **Back to OWN**, another page, PRESETS or EDIT off: the chords are back as they were.
 - While a progression only plays, NOTE, CHORD, the step keys and recording wait; keep it first, then change it.
+
+### Bass lines and ARP rhythms
+
+On BASS and ARP, with EDIT on, **ALGORITHM** goes through ready-made parts; its name shows over the roll for 2 s
+(touch ALGORITHM to see it again). They play at once in place of the track's notes and work as the progressions do
+(REC keeps, asks again over notes; OWN, another page, PRESETS or EDIT off bring the notes back; NOTE or MODE, LENGTH,
+the step keys and recording wait meanwhile).
+
+- **BASS:** OFFBEAT (trance: on each beat's "and"), OCTAVES (eighths, up an octave and back), GALLOP (two sixteenths
+  on each off-beat), ROLLING (the three sixteenths after each kick), ACID (short sixteenths with accents). A bass line
+  is made of the pad's chords: each step plays the root, its octave or the fifth of the chord the pad holds there, so
+  it never plays a wrong note; it gets as many bars as the pad. No chords: the key's root (KEY OFF: A).
+- **ARP:** STRAIGHT (every sixteenth, the beats accented), EIGHTHS, SYNCOPATED (3 + 3 + 2 sixteenths), GATE (the trance
+  gate: short sixteenths with gaps), a bar of hits; the notes come from the pad as always.
+
+### Styles
+
+On the SONGS page with NEW selected, **KNOB2** (STYLE) picks what a new song starts as: EMPTY, or TRANCE (D minor,
+138 BPM), TECHNO (A minor, 130 BPM) or LOFI (C major, 84 BPM, swung). A style is a whole song to build on, made of
+the grooves, progressions, bass lines and rhythms above, in five parts chained INTRO BUILD DROP BREAK BUILD DROP OUTRO:
+
+| Part | What plays |
+|---|---|
+| INTRO | drums, bass |
+| BUILD | drums with a FILL in its last bar, pad, arpeggio |
+| DROP | drums, bass, pad, arpeggio |
+| BREAK | pad, arpeggio |
+| OUTRO | drums, pad |
+
+The LEAD is left free for your melody. PLAY listens to it first (turning STYLE meanwhile switches), SEQ twice loads it.
 
 ### Accents
 

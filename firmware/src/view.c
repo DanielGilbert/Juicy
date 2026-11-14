@@ -137,22 +137,29 @@ static void light_up(pass_t *pass)
                                  : ui.shown_bar + 1u < pass->bar_total || (ui.edit_on && pass->page < TRACK_COUNT && pass->bar_total < BAR_COUNT));
     fm1_led_key(BTN_OCT_DOWN, ui.recording_on && ui.keyboard_octaves[pass->melodic] < 1u);   /* recording: the keys are an octave that way */
     fm1_led_key(BTN_OCT_UP, ui.recording_on && ui.keyboard_octaves[pass->melodic] > 1u);
-    fm1_led_key(BTN_REC, ui.recording_on || suggestion_plays());   /* (a groove or progression that plays: REC keeps it) */
+    fm1_led_key(BTN_REC, ui.recording_on || suggestion_plays());   /* (a groove or suggestion that plays: REC keeps it) */
     fm1_led_key_glow(BTN_REC, pass->page == PAGE_SONGS ? ui.selected_place >= PLACE_FIRST_KEPT : pass->page == PAGE_LIBRARY || ((pass->page == PAGE_GLOBAL || (pass->page < TRACK_COUNT && !pass->mix_page)) && ui.edit_on));
+}
+
+static void body_clear(void)                    /* the page's body black, each part of it to be drawn again */
+{
+    uint32_t row;
+    lcd_fill(0, BODY_TOP, 240, BODY_HEIGHT, C_BLACK);
+    for (row = 0; row < DRUM_COUNT; row++) ui.mix_drawn[row] = 0;
+    ui.roll_drawn = ui.roll_marker_drawn = ui.chain_drawn = ui.songs_drawn = ui.library_drawn = ui.sound_drawn = ui.naming_drawn = 0;
+    for (row = 0; row < DRUMS_PER_PAGE; row++) ui.drum_row_drawn[row] = 0;
 }
 
 /* the screen: only what changed */
 static void draw_screen(pass_t *pass)
 {
     uint32_t state;
-    uint32_t knob, drum;
+    uint32_t knob;
     /* the screen: only what changed. Each *_drawn holds what is on the screen (+ 1, so 0 means "draw it") */
     if (pass->page + (pass->sound_page ? 16u : 0u) + (pass->mix_page ? 32u : 0u) != ui.page_drawn) {   /* (a sound or mix page is a page of its own) */
         ui.page_drawn = pass->page + (pass->sound_page ? 16u : 0u) + (pass->mix_page ? 32u : 0u);
-        for (knob = 0; knob < DRUM_COUNT; knob++) ui.mix_drawn[knob] = 0;
-        lcd_fill(0, BODY_TOP, 240, BODY_HEIGHT, C_BLACK);
-        ui.header_drawn = ui.roll_drawn = ui.roll_marker_drawn = ui.chain_drawn = ui.songs_drawn = ui.library_drawn = ui.sound_drawn = ui.naming_drawn = 0;
-        for (drum = 0; drum < DRUMS_PER_PAGE; drum++) ui.drum_row_drawn[drum] = 0;
+        body_clear();
+        ui.header_drawn = ui.overlay_drawn = 0;
         ui.drum_pages_drawn = 0;
         for (knob = 0; knob < KNOB_COUNT; knob++) ui.knob_drawn[knob] = 0;
     }
@@ -168,6 +175,17 @@ static void draw_screen(pass_t *pass)
             ui.chord_name_drawn = 1u + chord;
             draw_chord_name(pass->page, chord);
         }
+    }
+    if (ui.overlay_shown && fm1_ms - ui.overlay_ms >= OVERLAY_MS) {   /* the overlay's time is over: the body again, as it is now */
+        ui.overlay_shown = 0;
+        body_clear();
+    }
+    if (ui.overlay_shown) {                     /* (meanwhile the body is not drawn: it would cover the overlay) */
+        if (!ui.overlay_drawn) {
+            ui.overlay_drawn = 1;
+            draw_overlay(ui.overlay_label, ui.overlay_text);
+        }
+        return;
     }
     if (pass->page == PAGE_GLOBAL) {
         state = 1u + (ui.shown_pattern | pass->marked_slot << 4 | (uint32_t)(chain_on != 0) << 12);   /* (a changed place sets chain_drawn to 0) */
@@ -200,10 +218,10 @@ static void draw_screen(pass_t *pass)
             draw_naming(pass->pattern->name, ui.shown_pattern, ui.naming_cursor);
         }
     } else if (pass->page == PAGE_SONGS) {
-        state = 1u + (ui.selected_place | ui.songs_note << 4 | ui.places_with_song << 8 | ui.preview_on << 20);
+        state = 1u + (ui.selected_place | ui.songs_note << 4 | ui.places_with_song << 8 | ui.preview_on << 20 | ui.new_style << 21);
         if (state != ui.songs_drawn) {
             ui.songs_drawn = state;
-            draw_songs(ui.selected_place, ui.places_with_song, ui.place_names, ui.songs_note, ui.preview_on != 0);
+            draw_songs(ui.selected_place, ui.places_with_song, ui.place_names, ui.songs_note, ui.preview_on != 0, STYLES[ui.new_style].description);
         }
     } else if (pass->page == PAGE_LIBRARY) {
         state = 1u + (ui.selected_library_place | ui.library_note << 4 | ui.shown_pattern << 8 | ui.places_with_pattern << 12 | ui.preview_on << 28);
@@ -285,11 +303,12 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
             view->text = WAVE_NAMES[view->value];
             view->big = 0;
         } else format_number(view->number, view->value);
-    } else if (page == PAGE_SONGS) {            /* the place: a demo's name small, a kept one's number big */
-        view->label = SONGS_LABELS[knob];
-        view->value = knob ? 0u : ui.selected_place;
-        view->text = PLACE_NAMES[view->value];
-        view->big = view->value >= PLACE_FIRST_KEPT;
+    } else if (page == PAGE_SONGS) {            /* the place: a demo's name small, a kept one's number big; on NEW the STYLE */
+        const int style_shown = knob == 1u && ui.selected_place == PLACE_NEW;
+        view->label = style_shown ? "STYLE" : SONGS_LABELS[knob];
+        view->value = style_shown ? 100u + ui.new_style : knob ? 0u : ui.selected_place;
+        view->text = style_shown ? STYLES[ui.new_style].name : PLACE_NAMES[knob ? 0u : view->value];
+        view->big = !style_shown && view->value >= PLACE_FIRST_KEPT;
     } else if (page == PAGE_LIBRARY) {
         view->label = LIBRARY_LABELS[knob];
         view->value = knob ? 0u : ui.selected_library_place + 1u;
@@ -329,9 +348,9 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
             view->text = CHORD_NAMES[view->value == PAD_CHORD_AUTO && song_key() == KEY_OFF ? PAD_CHORD_MINOR : view->value];   /* (AUTO without a key: MIN) */
             view->big = 0;
         } else if (pad_shown && knob == 3u) {   /* CHORDS: the progression (a word), or REC's question */
-            view->label = ui.progression_asked ? "REC" : "CHORDS";
-            view->value = ui.progression_asked ? 1000u : ui.progression_shown;
-            view->text = ui.progression_asked ? "AGAIN" : PROGRESSIONS[ui.progression_shown].name;
+            view->label = ui.suggestion_asked ? "REC" : "CHORDS";
+            view->value = ui.suggestion_asked ? 1000u : ui.suggestion_shown;
+            view->text = ui.suggestion_asked ? "AGAIN" : PROGRESSIONS[ui.suggestion_shown].name;
             view->big = 0;
         } else if (knob == 3u && view->value < LENGTH_WHOLE_FIRST) {   /* LENGTH: 10 % .. 90 % of a step, then whole steps */
             view->number[0] = (char)('0' + view->value);

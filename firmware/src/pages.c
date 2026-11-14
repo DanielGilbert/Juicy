@@ -36,18 +36,23 @@ static void library_input(pass_t *pass)
     }
 }
 
-/* the songs' page (no EDIT): a place (KNOB1); SEQ loads its song, REC saves the song there (each asks twice where that
- * replaces something) */
+/* the songs' page (no EDIT): a place (KNOB1), on NEW the style it starts from (KNOB2); SEQ loads its song, REC saves
+ * the song there (each asks twice where that replaces something) */
 static void songs_input(pass_t *pass)
 {
     if (pass->detents[0]) {
         ui.selected_place = turned_value(ui.selected_place, pass->detents[0], 0, PLACE_COUNT - 1u);
         ui.songs_note = SONGS_NOTE_NONE;
     }
+    if (pass->detents[1] && ui.selected_place == PLACE_NEW) {
+        ui.new_style = turned_value(ui.new_style, pass->detents[1], 0, STYLE_COUNT - 1u);
+        ui.songs_note = SONGS_NOTE_NONE;
+        if (ui.preview_on) ui.preview_place = PLACE_COUNT;   /* (listening: the new style plays instead) */
+    }
     if (pass->buttons_pressed & (1u << BTN_SEQ) && ui.places_with_song >> ui.selected_place & 1u) {
         if (playing) ui.songs_note = SONGS_NOTE_STOP_FIRST;
         else if (ui.songs_note != SONGS_NOTE_LOAD_ASKED) ui.songs_note = SONGS_NOTE_LOAD_ASKED;
-        else if (!place_load(ui.selected_place)) {   /* the song is another one: home, where its chain shows */
+        else if (!place_load(ui.selected_place, ui.new_style)) {   /* the song is another one: home, where its chain shows */
             chain_on = song_has_chain();
             ui.shown_pattern = ui.shown_bar = 0;
             ui.songs_shown = 0;
@@ -278,8 +283,87 @@ static void track_knobs(pass_t *pass, track_edit_t *edit)
     }
 }
 
+/* recording while playing (only into the pattern on the screen, while it is the one that plays): a key's note sounds at
+ * once and lands on the step nearest to when it was played (a swung step: to when it sounds), as long as the key is
+ * held (under a step: in tenths of one; the pad's chord: until the next). While the key is down the note grows a step
+ * ahead of the song, so the steps it covers do not cut it; the bar as it was keeps what it grows over */
+static void live_note_put(uint32_t length)      /* the note's bar as it was before it, the note over it */
+{
+    volatile pattern_t *const pattern = &song.patterns[ui.live_pattern];
+    const uint32_t melodic = ui.live_melodic, bar = ui.live_start / STEPS_PER_BAR, step = ui.live_start % STEPS_PER_BAR;
+    memcpy((void *)pattern->notes[melodic][bar], ui.live_bar_notes, sizeof ui.live_bar_notes);
+    memcpy((void *)pattern->gates[melodic][bar], ui.live_bar_gates, sizeof ui.live_bar_gates);
+    pattern->accents[MELODIC_FIRST_PAGE + melodic][bar] = (uint16_t)(ui.live_bar_accents & ~(1u << step));   /* (not accented) */
+    put_note(pattern->notes[melodic][bar], pattern->gates[melodic][bar], melodic, step, ui.live_value, length);
+    ui.live_length = length;
+    ui.roll_drawn = 0;
+}
+
+static uint32_t live_held_q8(void)              /* how long the key has been down, from its step's sound on, in 1/256 of a step */
+{
+    const uint32_t held_ms = fm1_ms - ui.live_ms > 10000u ? 10000u : fm1_ms - ui.live_ms;   /* (longer than any bar: as long) */
+    const int32_t held_q8 = (int32_t)(held_ms * 65536u / (frames_per_step_q8 * 1000u / FS)) + ui.live_offset_q8;
+    return held_q8 < 0 ? 0u : (uint32_t)held_q8;
+}
+
+static void live_note_start(pass_t *pass, uint32_t key, uint32_t value)
+{
+    const uint32_t melodic = pass->melodic, late_q8 = pass->pattern->swing * 256u / 50u;   /* (a swung step sounds that late) */
+    uint32_t step, started_ms, since_ms, since_q8, bar;
+    do {                                        /* (both of the same step: the ISR moves them) */
+        step = playing_step;
+        started_ms = step_started_ms;
+    } while (step != playing_step);
+    since_ms = (int32_t)(fm1_ms - started_ms) < 0 ? 0u : fm1_ms - started_ms > 1000u ? 1000u : fm1_ms - started_ms;
+    since_q8 = since_ms * 65536u / (frames_per_step_q8 * 1000u / FS);
+    if (since_q8 > 255u) since_q8 = 255u;
+    ui.live_offset_q8 = (int32_t)since_q8 - (int32_t)(step & 1u ? late_q8 : 0u);
+    if ((int32_t)(256u + (step & 1u ? 0u : late_q8)) - (int32_t)since_q8 < (ui.live_offset_q8 < 0 ? -ui.live_offset_q8 : ui.live_offset_q8)) {
+        ui.live_offset_q8 = (int32_t)since_q8 - (int32_t)(256u + (step & 1u ? 0u : late_q8));   /* nearer the next step's sound: played a bit early */
+        step++;
+    }
+    ui.live_start = step % (pass->bar_total * STEPS_PER_BAR);
+    bar = ui.live_start / STEPS_PER_BAR;
+    ui.live_key = key;
+    ui.live_melodic = melodic;
+    ui.live_pattern = ui.shown_pattern;
+    ui.live_value = value;
+    ui.live_ms = fm1_ms;
+    memcpy(ui.live_bar_notes, (const void *)pass->pattern->notes[melodic][bar], sizeof ui.live_bar_notes);
+    memcpy(ui.live_bar_gates, (const void *)pass->pattern->gates[melodic][bar], sizeof ui.live_bar_gates);
+    ui.live_bar_accents = pass->pattern->accents[MELODIC_FIRST_PAGE + melodic][bar];
+    live_starts[melodic] = 1u + ui.live_start;
+    live_note_put(melodic == MELODIC_PAD ? LENGTH_WHOLE_FIRST : GATE_TENTHS_MAX + 2u);   /* (its step and the next) */
+    pass->song_changed = 1;
+}
+
+/* each pass: the note recorded while playing grows while its key is down; let go (another key, the recording or the
+ * song stopped, another page or pattern), it is as long as it was held */
+static void live_note_follow(pass_t *pass)
+{
+    const uint32_t melodic = ui.live_melodic;
+    if (ui.live_key == KEY_COUNT) return;
+    if (pass->keys >> ui.live_key & 1u && !pass->keys_pressed && ui.recording_on && playing
+        && pass->page == MELODIC_FIRST_PAGE + melodic && ui.shown_pattern == ui.live_pattern) {
+        const uint32_t grown = GATE_TENTHS_MAX + live_held_q8() / 256u + 2u;   /* (through the step after the one that plays) */
+        if (melodic != MELODIC_PAD && grown > ui.live_length && grown <= GATE_TENTHS_MAX + STEPS_PER_BAR - ui.live_start % STEPS_PER_BAR) {
+            live_note_put(grown);
+            pass->song_changed = 1;
+        }
+        return;
+    }
+    if (melodic != MELODIC_PAD) {
+        const uint32_t held_q8 = live_held_q8(), tenths = (held_q8 * 10u + 128u) / 256u;
+        const uint32_t length = tenths < 10u ? (tenths ? tenths : 1u) : GATE_TENTHS_MAX + (held_q8 + 128u) / 256u;
+        live_note_put(length < ui.live_length ? length : ui.live_length);
+        pass->song_changed = 1;
+    }
+    live_starts[melodic] = 0;
+    ui.live_key = KEY_COUNT;
+}
+
 /* played: a key's note sounds while it is down, and is the one EDIT places. Recording: the note goes to the cursor,
- * which moves on past it (the pad's: a bar on), round the track */
+ * which moves on past it (the pad's: a bar on), round the track; while playing: where the song is (above) */
 static void track_keys(pass_t *pass, track_edit_t *edit)
 {
     const uint32_t melodic = pass->melodic, first_key_note = keyboard_first_note(melodic, ui.keyboard_octaves[melodic]);
@@ -293,7 +377,11 @@ static void track_keys(pass_t *pass, track_edit_t *edit)
         edit->audition_value = key_note | (melodic == MELODIC_PAD ? pad_chord_for(key_note, ui.selected_chord) << CHORD_SHIFT : 0u);
         placed_value = melodic == MELODIC_ARP ? ARP_HIT : edit->audition_value;   /* (ARP: the key sounds, a hit is placed) */
         if (!ui.recording_on) continue;
-        length = melodic == MELODIC_PAD ? LENGTH_WHOLE_FIRST : ui.selected_lengths[melodic];
+        if (playing) {
+            if (playing_pattern == ui.shown_pattern) live_note_start(pass, key, placed_value);
+            continue;
+        }
+        length =melodic == MELODIC_PAD ? LENGTH_WHOLE_FIRST : ui.selected_lengths[melodic];
         put_note(edit->bar_notes, edit->bar_gates, melodic, ui.cursor_steps[melodic], placed_value, length);
         pass->pattern->accents[pass->page][ui.shown_bar] &= (uint16_t)~(1u << ui.cursor_steps[melodic]);   /* (not accented) */
         position = (ui.shown_bar * STEPS_PER_BAR + ui.cursor_steps[melodic] + (melodic == MELODIC_PAD ? STEPS_PER_BAR : length_steps(length))) % (pass->bar_total * STEPS_PER_BAR);
@@ -354,25 +442,33 @@ static void roll_follow(pass_t *pass, const track_edit_t *edit)
     ui.roll_lowest_notes[melodic] = lowest;
 }
 
-/* PAD, KNOB4 (EDIT): a progression plays in place of the pad's chords (stopped: its first chord sounds); REC keeps it,
- * meanwhile NOTE, CHORD, the step keys and recording wait */
-static void progression_input(pass_t *pass, track_edit_t *edit)
+/* EDIT: a suggestion plays in place of the track's notes: PAD's KNOB4 a progression (stopped: its first chord sounds),
+ * BASS's ALGORITHM a bass line, ARP's a rhythm (its name over the roll a moment). REC keeps it; meanwhile NOTE (ARP:
+ * MODE), CHORD or LENGTH, the step keys and recording wait */
+static void suggestion_input(pass_t *pass, track_edit_t *edit)
 {
-    const uint32_t progression = turned_value(ui.progression_shown, pass->detents[3], PROGRESSION_OWN, PROGRESSION_COUNT - 1u);
-    if (progression != ui.progression_shown) {
-        if (ui.progression_shown == PROGRESSION_OWN) {
-            pad_keep(pass->pattern, &ui.progression_kept);
-            ui.progression_pattern = ui.shown_pattern;
-        } else pad_put_back(pass->pattern, &ui.progression_kept);
-        if (progression != PROGRESSION_OWN) progression_put(pass->pattern, progression);
-        if (progression != PROGRESSION_OWN && !playing)
+    const uint32_t melodic = pass->melodic;
+    const int32_t detents = melodic == MELODIC_PAD ? pass->detents[3] : pass->algorithm_detents;
+    const uint32_t shown = ui.suggestion_shown != SUGGESTION_OWN && ui.suggestion_melodic == melodic ? ui.suggestion_shown : SUGGESTION_OWN;
+    const uint32_t suggestion = turned_value(shown, detents, SUGGESTION_OWN, suggestion_count(melodic) - 1u);
+    if (!ui.edit_on || suggestion_count(melodic) < 2u) return;
+    if (suggestion != shown) {
+        if (shown == SUGGESTION_OWN) {
+            track_keep(pass->pattern, melodic, &ui.suggestion_kept);
+            ui.suggestion_pattern = ui.shown_pattern;
+            ui.suggestion_melodic = melodic;
+        } else track_put_back(pass->pattern, melodic, &ui.suggestion_kept);
+        if (suggestion != SUGGESTION_OWN) suggestion_put(pass->pattern, melodic, suggestion);
+        if (suggestion != SUGGESTION_OWN && !playing && melodic == MELODIC_PAD)
             edit->audition_value = step_value(pass->pattern->notes[MELODIC_PAD][0], pass->pattern->gates[MELODIC_PAD][0], MELODIC_PAD, 0);
-        ui.progression_shown = progression;
-        ui.progression_asked = 0;
+        ui.suggestion_shown = suggestion;
+        ui.suggestion_asked = 0;
         ui.roll_drawn = 0;
     }
-    if (ui.progression_shown != PROGRESSION_OWN) {
-        pass->detents[0] = pass->detents[2] = 0;
+    if (detents && melodic != MELODIC_PAD) overlay_show(melodic == MELODIC_BASS ? "BASS LINE" : "RHYTHM", suggestion_name(melodic, suggestion));
+    if (ui.suggestion_shown != SUGGESTION_OWN) {
+        pass->detents[0] = 0;
+        pass->detents[melodic == MELODIC_PAD ? 2 : 3] = 0;
         pass->tapped_steps = 0;
         pass->held_step = NO_STEP;
         ui.recording_on = 0;
@@ -389,7 +485,9 @@ static void track_input(pass_t *pass)
     edit.note_highest = MELODIC[pass->melodic].note_highest;
     edit.audition_value = 0;
     track_cursor(pass, &edit);
-    if (pass->melodic == MELODIC_PAD && pass->notes_page) progression_input(pass, &edit);
+    if (pass->notes_page) suggestion_input(pass, &edit);
+    if (ui.recording_on && playing && playing_pattern == ui.shown_pattern)   /* recording while playing: the screen shows the bar that plays */
+        ui.shown_bar = playing_step / STEPS_PER_BAR % pass->bar_total;
     edit.bar_notes = pass->pattern->notes[pass->melodic][ui.shown_bar];
     edit.bar_gates = pass->pattern->gates[pass->melodic][ui.shown_bar];
     track_knobs(pass, &edit);
@@ -412,6 +510,7 @@ static void track_input(pass_t *pass)
 static void page_input(pass_t *pass)
 {
     uint32_t track;
+    live_note_follow(pass);
     if (pass->page == PAGE_GLOBAL) global_input(pass);
     else if (pass->page == PAGE_NAMING) naming_input(pass);
     else if (pass->page == PAGE_DRUMS) drums_input(pass);

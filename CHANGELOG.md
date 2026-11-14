@@ -65,3 +65,13 @@ The first version: Juicy on the FM-1, tested on the device since 11.11.2026.
   to OWN or leaving brings the chords back.
 - Undo: GLO brings back the song as it was before the last change (changes less than a second apart are one, loading
   a song is one too); GLO again brings the change back. GLO glows when there is something to bring back.
+- A box over the page says for 2 s what a press or turn did: UNDO or REDO on GLO, the bass line or rhythm ALGORITHM
+  picked.
+- Bass lines and ARP rhythms: on BASS with EDIT, ALGORITHM plays OFFBEAT, OCTAVES, GALLOP, ROLLING or ACID, made of
+  the pad's chords (root, octave, fifth: never a wrong note); on ARP STRAIGHT, EIGHTHS, SYNCOPATED or GATE. REC keeps
+  it (asks again over notes), turning back to OWN or leaving brings the notes back.
+- Styles: on SONGS with NEW selected, KNOB2 (STYLE) picks EMPTY, TRANCE, TECHNO or LOFI. A style is a song to build on:
+  INTRO BUILD DROP BREAK BUILD DROP OUTRO, each part with its groove, chords, bass and arpeggio, the lead left free.
+- Live recording: REC on a track with EDIT while the song plays (or PLAY while recording): the keys' notes sound at
+  once and land on the nearest step, as long as they were held, over the notes that are there. The screen follows the
+  bar that plays; GLO takes the whole take back.

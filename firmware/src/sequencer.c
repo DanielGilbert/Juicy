@@ -44,6 +44,8 @@ static volatile uint32_t frames_per_step_q8;    /* (the main loop writes) */
 static volatile uint32_t drum_auditions[DRUM_COUNT];   /* counts up when the main loop wants to hear a drum */
 static volatile uint32_t note_auditions[MELODIC_COUNT], audition_notes[MELODIC_COUNT];   /* the same for a note (the note is written first) */
 static volatile uint32_t note_held[MELODIC_COUNT];   /* the key that plays that note is down: it sounds until the key lets go (the main loop writes) */
+static volatile uint32_t live_starts[MELODIC_COUNT];   /* recording while playing: 1 + the step (of the track) the held key's note starts on, 0: none;
+                                                        * it sounds already, the step does not start it again (the main loop writes) */
 static volatile uint32_t chain_on;              /* the chain plays, not the pattern on the screen (the main loop writes) */
 static volatile uint32_t muted_tracks;          /* bit t: track t (a page: DRUMS, then the melodic tracks) does not play its pattern (the main loop writes) */
 static volatile uint32_t loop_pattern;          /* the pattern on the screen: it plays when the chain does not (the main loop writes) */
@@ -151,7 +153,9 @@ static void app_audio(int32_t *out, uint32_t frame_count)
                 audition_frames_left[melodic] = 1;   /* it ends when the key lets go */
             else if (audition_frames_left[melodic] <= frame_count) {
                 audition_frames_left[melodic] = 0;
-                if (melodic == MELODIC_PAD && pad_pattern_value) melodic_note_on(melodic, pad_pattern_value, 0);   /* back to the pattern's chord */
+                if (melodic == MELODIC_PAD && pad_pattern_value) {   /* back to the pattern's chord (the same one, recorded: it goes on) */
+                    if (pad_pattern_value != audition_notes[melodic]) melodic_note_on(melodic, pad_pattern_value, 0);
+                }
                 else melodic_note_off(melodic);
             } else
                 audition_frames_left[melodic] -= frame_count;
@@ -239,6 +243,8 @@ static void app_audio(int32_t *out, uint32_t frame_count)
                     pad_pattern_value = note;
                 } else if (note & NOTE_TIE)
                     continue;                   /* tied: the note before goes on */
+                if (note && note_held[melodic] && live_starts[melodic] == 1u + track_bar * STEPS_PER_BAR + step && pattern_now == loop_pattern)
+                    continue;                   /* recorded while playing, its key still down: it sounds already */
                 if (melodic == MELODIC_ARP && note) {   /* a hit: the chord's next note (the one the pad's keys play, if they do; none: silent) */
                     const uint32_t chord = audition_frames_left[MELODIC_PAD] ? audition_notes[MELODIC_PAD] : arp_chord;
                     if (chord != arp_chord_used) {

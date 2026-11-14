@@ -316,3 +316,151 @@ static void progression_put(volatile pattern_t *pattern, uint32_t progression)
         }
     }
 }
+
+/* ---- the bass lines (ALGORITHM on BASS): made from the pad's chords, so never a wrong note. Each step plays the root,
+ * its octave or the fifth of the chord the pad holds there (no chord: the key's root, KEY OFF: A). A line has as
+ * many bars as the pad. Steps as in drum_hits: bit s, step s */
+enum { BASS_LINE_OWN, BASS_LINE_OFFBEAT, BASS_LINE_OCTAVES, BASS_LINE_GALLOP, BASS_LINE_ROLLING, BASS_LINE_ACID,
+       BASS_LINE_COUNT };
+#define BASS_ROOT_LOWEST 28u                    /* the roots go E1 .. D#2 (DEMO1's acid: A1) */
+static const struct {
+    const char *name;
+    uint16_t roots, octaves, fifths, accents;
+    uint8_t length;                             /* as LENGTH: below LENGTH_WHOLE_FIRST tenths of a step, then whole steps */
+} BASS_LINES[BASS_LINE_COUNT] = {
+    {"OWN", 0, 0, 0, 0, 0},
+    {"OFFBEAT", 0x4444, 0, 0, 0, LENGTH_WHOLE_FIRST + 1u},           /* trance: on each beat's "and", two steps long */
+    {"OCTAVES", 0x1111, 0x4444, 0, 0, LENGTH_WHOLE_FIRST},           /* disco, house: eighths, up an octave and back */
+    {"GALLOP", 0xCCCC, 0, 0, 0, LENGTH_WHOLE_FIRST},                 /* two sixteenths on each off-beat (DEMO2's) */
+    {"ROLLING", 0xEEEE, 0, 0, 0, LENGTH_WHOLE_FIRST},                /* psytrance: the three sixteenths after each kick */
+    {"ACID", 0x9353, 0x4484, 0x2020, 0x2421, 6u},                    /* sixteenths, short, accents: the bite */
+};
+
+static void bass_line_put(volatile pattern_t *pattern, uint32_t line)
+{
+    const uint32_t key = song_key(), key_root = key != KEY_OFF ? (key - 1u) / 2u : 9u;
+    const uint32_t bars = pad_chord_at(pattern, BAR_COUNT - 1u, STEPS_PER_BAR - 1u) ? pattern->bar_totals[1u + MELODIC_PAD] : 1u;
+    uint32_t bar, step;
+    pattern_clear(pattern, 1u + MELODIC_BASS, 0);
+    pattern->bar_totals[1u + MELODIC_BASS] = (uint8_t)bars;
+    for (bar = 0; bar < bars; bar++) {
+        for (step = 0; step < STEPS_PER_BAR; step++) {
+            const uint32_t chord = pad_chord_at(pattern, bar, step), type = chord >> CHORD_SHIFT;
+            const uint32_t pitch_class = chord ? (chord & NOTE_MASK) % 12u : key_root;
+            const uint32_t root = BASS_ROOT_LOWEST + (pitch_class + 12u - BASS_ROOT_LOWEST % 12u) % 12u;
+            const uint32_t fifth = chord && PAD_CHORDS[type].note_count >= 3u ? PAD_CHORDS[type].intervals[2] : 7u;   /* (diminished: 6) */
+            if (BASS_LINES[line].roots >> step & 1u) put_note(pattern->notes[MELODIC_BASS][bar], pattern->gates[MELODIC_BASS][bar], MELODIC_BASS, step, root, BASS_LINES[line].length);
+            if (BASS_LINES[line].octaves >> step & 1u) put_note(pattern->notes[MELODIC_BASS][bar], pattern->gates[MELODIC_BASS][bar], MELODIC_BASS, step, root + 12u, BASS_LINES[line].length);
+            if (BASS_LINES[line].fifths >> step & 1u) put_note(pattern->notes[MELODIC_BASS][bar], pattern->gates[MELODIC_BASS][bar], MELODIC_BASS, step, root + fifth, BASS_LINES[line].length);
+        }
+        pattern->accents[1u + MELODIC_BASS][bar] = BASS_LINES[line].accents;
+    }
+}
+
+/* ---- the ARP rhythms (ALGORITHM on ARP): where its hits are, a bar of them (the notes come from the pad, as always) */
+enum { ARP_RHYTHM_OWN, ARP_RHYTHM_STRAIGHT, ARP_RHYTHM_EIGHTHS, ARP_RHYTHM_SYNCOPATED, ARP_RHYTHM_GATE, ARP_RHYTHM_COUNT };
+static const struct {
+    const char *name;
+    uint16_t hits, accents;
+    uint8_t length;                             /* as LENGTH */
+} ARP_RHYTHMS[ARP_RHYTHM_COUNT] = {
+    {"OWN", 0, 0, 0},
+    {"STRAIGHT", 0xFFFF, 0x1111, LENGTH_WHOLE_FIRST},   /* every sixteenth, the beats louder */
+    {"EIGHTHS", 0x5555, 0, LENGTH_WHOLE_FIRST},
+    {"SYNCOPATED", 0x4949, 0x0101, LENGTH_WHOLE_FIRST}, /* 3 + 3 + 2 sixteenths, twice a bar */
+    {"GATE", 0x6D6D, 0, 5u},                            /* the trance gate: short sixteenths with gaps */
+};
+
+static void arp_rhythm_put(volatile pattern_t *pattern, uint32_t rhythm)
+{
+    uint32_t step;
+    pattern_clear(pattern, 1u + MELODIC_ARP, 0);
+    pattern->bar_totals[1u + MELODIC_ARP] = 1;
+    for (step = 0; step < STEPS_PER_BAR; step++)
+        if (ARP_RHYTHMS[rhythm].hits >> step & 1u) put_note(pattern->notes[MELODIC_ARP][0], pattern->gates[MELODIC_ARP][0], MELODIC_ARP, step, ARP_HIT, ARP_RHYTHMS[rhythm].length);
+    pattern->accents[1u + MELODIC_ARP][0] = ARP_RHYTHMS[rhythm].accents;
+}
+
+/* ---- a suggestion: a progression (PAD), a bass line (BASS) or a rhythm (ARP) for a melodic track; 0 is its own notes */
+#define SUGGESTION_OWN 0u
+
+static uint32_t suggestion_count(uint32_t melodic)   /* (LEAD: none, only its own) */
+{
+    return melodic == MELODIC_PAD ? PROGRESSION_COUNT : melodic == MELODIC_BASS ? BASS_LINE_COUNT : melodic == MELODIC_ARP ? ARP_RHYTHM_COUNT : 1u;
+}
+
+static const char *suggestion_name(uint32_t melodic, uint32_t suggestion)
+{
+    return melodic == MELODIC_PAD ? PROGRESSIONS[suggestion].name : melodic == MELODIC_BASS ? BASS_LINES[suggestion].name : ARP_RHYTHMS[suggestion].name;
+}
+
+static void suggestion_put(volatile pattern_t *pattern, uint32_t melodic, uint32_t suggestion)
+{
+    if (melodic == MELODIC_PAD) progression_put(pattern, suggestion);
+    else if (melodic == MELODIC_BASS) bass_line_put(pattern, suggestion);
+    else arp_rhythm_put(pattern, suggestion);
+}
+
+/* ---- the styles NEW starts from (KNOB2 on SONGS, NEW selected): a song's parts, each made of a groove, a
+ * progression, a bass line and an arpeggio in that style (the LEAD is left to the player). The chain: INTRO BUILD
+ * DROP BREAK BUILD DROP OUTRO. EMPTY is an empty song */
+enum { STYLE_EMPTY, STYLE_TRANCE, STYLE_TECHNO, STYLE_LOFI, STYLE_COUNT };
+static const struct {
+    const char *name, *description;             /* (the songs' page: what NEW is then) */
+    uint8_t tempo, key, swing, arp_mode;
+    uint8_t groove, progression, bass_line, arp_rhythm;
+    uint8_t sounds[MELODIC_COUNT];              /* each track's sound: BASS, ARP, PAD, LEAD (as sound_apply takes them) */
+} STYLES[STYLE_COUNT] = {
+    {"EMPTY", "AN EMPTY SONG", 0, 0, 0, 0, 0, 0, 0, 0, {0}},
+    {"TRANCE", "A TRANCE SONG TO BUILD ON", 138, SONG_KEY(2u, 0u), 0, ARP_MODE(ARP_ORDER_UP, 2u),   /* D minor */
+     GROOVE_TRANCE, PROGRESSION_EPIC, BASS_LINE_GALLOP, ARP_RHYTHM_STRAIGHT, {0, 0, 0, 0}},        /* PLUCK, PLUCK, WARM, SUPERSAW */
+    {"TECHNO", "A TECHNO SONG TO BUILD ON", 130, SONG_KEY(9u, 0u), 0, ARP_MODE(ARP_ORDER_UP, 3u),   /* A minor */
+     GROOVE_TECHNO, PROGRESSION_MINIMAL, BASS_LINE_ACID, ARP_RHYTHM_SYNCOPATED, {2, 1, 1, 1}},     /* ACID, SQUARE, BRIGHT, SQUARE */
+    {"LOFI", "A LO-FI SONG TO BUILD ON", 84, SONG_KEY(0u, 1u), 12, ARP_MODE(ARP_ORDER_DOWN, 1u),   /* C major, swung */
+     GROOVE_HIPHOP, PROGRESSION_LOFI, BASS_LINE_OCTAVES, ARP_RHYTHM_EIGHTHS, {1, 3, 0, 2}},         /* SUB, SOFT, WARM, SOFT */
+};
+
+static void style_song(uint32_t style)
+{
+    enum { INTRO, BUILD, DROP, BREAK, OUTRO, PART_COUNT };
+    static const char *const PART_NAMES[PART_COUNT] = {"INTRO", "BUILD", "DROP", "BREAK", "OUTRO"};
+    static const uint8_t PART_TRACKS[PART_COUNT] = {   /* bit 0 the drums, bit 1 + melodic that track */
+        1u | 1u << (1u + MELODIC_BASS),
+        1u | 1u << (1u + MELODIC_ARP) | 1u << (1u + MELODIC_PAD),
+        1u | 1u << (1u + MELODIC_BASS) | 1u << (1u + MELODIC_ARP) | 1u << (1u + MELODIC_PAD),
+        1u << (1u + MELODIC_ARP) | 1u << (1u + MELODIC_PAD),
+        1u | 1u << (1u + MELODIC_PAD)};
+    static const uint8_t CHAIN[] = {INTRO + 1, BUILD + 1, DROP + 1, BREAK + 1, BUILD + 1, DROP + 1, OUTRO + 1};
+    uint32_t part, melodic, bar, drum;
+    empty_song();
+    if (style == STYLE_EMPTY) return;
+    song.tempo = STYLES[style].tempo;
+    song.key = STYLES[style].key;
+    for (melodic = 0; melodic < MELODIC_COUNT; melodic++) sound_apply(melodic, STYLES[style].sounds[melodic]);
+    for (part = 0; part < PART_COUNT; part++) {
+        volatile pattern_t *filled = &song.patterns[part];
+        filled->swing = STYLES[style].swing;
+        filled->arp_mode = STYLES[style].arp_mode;
+        progression_put(filled, STYLES[style].progression);
+        bass_line_put(filled, STYLES[style].bass_line);   /* (made of the chords: before the pad may go) */
+        arp_rhythm_put(filled, STYLES[style].arp_rhythm);
+        groove_put(filled, STYLES[style].groove, 0);
+        if (part == BUILD) {                    /* the groove three bars, then the fill */
+            for (bar = 1; bar < BAR_COUNT; bar++) {
+                for (drum = 0; drum < DRUM_COUNT; drum++) filled->drum_hits[drum][bar] = filled->drum_hits[drum][0];
+                filled->accents[0][bar] = filled->accents[0][0];
+            }
+            groove_put(filled, GROOVE_FILL, BAR_COUNT - 1u);
+            filled->bar_totals[0] = BAR_COUNT;
+        }
+        if (!(PART_TRACKS[part] & 1u))
+            for (bar = 0; bar < BAR_COUNT; bar++) {
+                for (drum = 0; drum < DRUM_COUNT; drum++) filled->drum_hits[drum][bar] = 0;
+                filled->accents[0][bar] = 0;
+            }
+        for (melodic = 0; melodic < MELODIC_COUNT; melodic++)
+            if (!(PART_TRACKS[part] >> (1u + melodic) & 1u)) pattern_clear(filled, 1u + melodic, 0);
+    }
+    song_names(STYLES[style].name, PART_NAMES, PART_COUNT);
+    song_chain(CHAIN, sizeof CHAIN);
+}
