@@ -9,9 +9,9 @@ and at being easy to pick up: turn it on, press PLAY, and the demo song plays; p
 the screen.
 
 <p align="center">
-  <img src="docs/juicy-home.png" width="200" alt="The JUICY screen: the chain of patterns, tempo and reverb">
-  <img src="docs/juicy-drums.png" width="200" alt="The DRUMS screen: kick, hat and clap over 16 steps">
-  <img src="docs/juicy-bass.png" width="200" alt="The BASS screen: a piano roll of one bar, NOTE, CUTOFF, DECAY, ECHO">
+  <img src="docs/juicy-home.png" width="200" alt="The JUICY screen of DEMO1: the chain of patterns, tempo, reverb, swing and key">
+  <img src="docs/juicy-drums.png" width="200" alt="The DRUMS screen: kick, hat and clap over 16 steps, GROOVE">
+  <img src="docs/juicy-bass.png" width="200" alt="The BASS screen: a piano roll of one bar, NOTE, CUTOFF, DECAY, LENGTH">
   <img src="docs/juicy-sound.png" width="200" alt="The bass's sound page: ACID, with WAVE, RESO, ATTACK and ENV">
 </p>
 
@@ -35,6 +35,8 @@ the screen.
 - **Three demo songs** (acid techno, uplifting trance, lo-fi), **8 songs** of your own, **a library of 16 patterns,**
   and the song you work on saves itself.
 - **The keys light up** where they do something, so you can see what the panel does on each screen.
+- **Hints:** a track with nothing in the pattern on the screen yet says what to do (`TAP A STEP: A NOTE`,
+  `REC: RECORD THE KEYS`, `KNOB1: A GROOVE` ...), until it holds something.
 
 ## Install
 
@@ -116,7 +118,8 @@ On BASS, ARP, PAD and LEAD, with EDIT on:
   (PAD) its kind of chord. On an empty step they set the next note instead.
 - **Step recording** (a tap of REC, it lights up): the keys play, and each key puts its note at the cursor with the
   LENGTH shown, then the cursor moves on by that length (on PAD: a bar), round the track's bars. Turn SELECT for a
-  rest. OCT- / OCT+ move the keys an octave (they stay there when recording ends). REC again or EDIT off ends it.
+  rest. OCT- / OCT+ move the keys an octave, a box says which notes they play now (they stay there when recording
+  ends). REC again or EDIT off ends it.
 - **Live recording** (the same, while the song plays): a key's note sounds at once and lands on the nearest step (a
   bit early: the step coming), as long as you hold the key (shorter than a step: 10 % to 90 % of one; on PAD the chord
   holds until the next). The notes there stay, a new one goes over what it covers. The screen follows the bar that

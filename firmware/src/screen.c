@@ -356,11 +356,13 @@ static void draw_mix_row(uint32_t row, const char *name, uint32_t value, int cen
     cv_blit(0, BODY_TOP + row * MIX_ROW_HEIGHT);
 }
 
-static void draw_drum_row(uint32_t drum, uint32_t row, uint32_t hits, uint32_t accents, int selected, uint32_t marked_step)   /* row: of the page */
+/* row: of the page; hint: what to do (no drums yet), at the right of the name, or 0 */
+static void draw_drum_row(uint32_t drum, uint32_t row, uint32_t hits, uint32_t accents, int selected, uint32_t marked_step, const char *hint)
 {
     uint32_t step;
     cv_begin(240, DRUM_ROW_HEIGHT, C_BLACK);
     cv_text(4, 0, &FONT_S, DRUM_NAMES[drum], selected ? C_ACCENT : C_LABEL);
+    if (hint) cv_text(236 - text_w(&FONT_S, hint), 0, &FONT_S, hint, C_LABEL);
     for (step = 0; step < STEPS_PER_BAR; step++) {
         uint16_t colour = hits >> step & 1u ? (selected ? C_ACCENT : C_HIT)
                         : step / 4u % 2u ? C_STEP_EVEN_BEAT : C_STEP_ODD_BEAT;
@@ -374,19 +376,21 @@ static void draw_drum_row(uint32_t drum, uint32_t row, uint32_t hits, uint32_t a
 static void draw_drum_pages(uint32_t drum_page)   /* a mark per page of drums, under the knobs' labels; orange the one shown */
 {
     uint32_t mark;
-    cv_begin(240, 8, C_BLACK);
+    cv_begin(DRUM_PAGES * 24u, 8, C_BLACK);     /* (only as wide as the marks: KNOB1's place is beside them) */
     for (mark = 0; mark < DRUM_PAGES; mark++)
-        cv_rect((int32_t)(120u - DRUM_PAGES * 12u + mark * 24u + 4u), 0, 16, 8, mark == drum_page ? C_ACCENT : C_STEP_ODD_BEAT);
-    cv_blit(0, 216);
+        cv_rect((int32_t)(mark * 24u + 4u), 0, 16, 8, mark == drum_page ? C_ACCENT : C_STEP_ODD_BEAT);
+    cv_blit(120u - DRUM_PAGES * 12u, 216);
 }
 
 /* a melodic track's bar as a piano roll: a column per step, a row per note (lowest_note at the bottom), the selected
  * note's row lit. A note above or below what fits is a thin line at that edge. The pad's chords show their other
  * notes above the root, dimmer. With a key (BASS, LEAD), the rows of the pad's chord's notes are tinted at each step.
- * The cursor's step is framed. */
-static void draw_roll(const volatile pattern_t *pattern, uint32_t melodic, uint32_t bar, uint32_t selected_note, uint32_t lowest_note, uint32_t cursor_step)
+ * The cursor's step is framed. hints: up to ROLL_HINTS lines of what to do (no notes yet) over the roll, or 0 */
+#define ROLL_HINTS 3u
+static void draw_roll(const volatile pattern_t *pattern, uint32_t melodic, uint32_t bar, uint32_t selected_note, uint32_t lowest_note, uint32_t cursor_step,
+                      const char *const *hints)
 {
-    uint32_t step;
+    uint32_t step, line;
     int32_t selected_y = (int32_t)((lowest_note + ROLL_ROWS - 1u - selected_note) * ROLL_ROW_HEIGHT);
     cv_begin(240, ROLL_HEIGHT, C_BLACK);
     for (step = 0; step < STEPS_PER_BAR; step++) {
@@ -430,6 +434,11 @@ static void draw_roll(const volatile pattern_t *pattern, uint32_t melodic, uint3
     }
     cv_rect(step_x(cursor_step) - 1, 0, 1, (int32_t)ROLL_HEIGHT, C_WHITE);   /* the cursor: a line either side of its step */
     cv_rect(step_x(cursor_step) + 12, 0, 1, (int32_t)ROLL_HEIGHT, C_WHITE);
+    for (line = 0; hints && line < ROLL_HINTS && hints[line]; line++) {   /* (each on black, in the middle) */
+        const int32_t width = text_w(&FONT_S, hints[line]) + 8;
+        cv_rect((240 - width) / 2, (int32_t)(10u + line * 20u), width, 18, C_BLACK);
+        cv_text((240 - width) / 2 + 4, (int32_t)(12u + line * 20u), &FONT_S, hints[line], C_LABEL);
+    }
     cv_blit(0, BODY_TOP);
 }
 

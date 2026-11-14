@@ -378,6 +378,18 @@ static int pattern_empty(const volatile pattern_t *pattern)
     return 1;
 }
 
+static int track_empty(const volatile pattern_t *pattern, uint32_t track)   /* track: 0 the drums, 1 + a melodic track */
+{
+    uint32_t bar, drum, step;
+    for (bar = 0; bar < BAR_COUNT; bar++) {
+        for (drum = 0; track == 0u && drum < DRUM_COUNT; drum++)
+            if (pattern->drum_hits[drum][bar]) return 0;
+        for (step = 0; track > 0u && step < STEPS_PER_BAR; step++)
+            if (pattern->notes[track - 1u][bar][step]) return 0;
+    }
+    return 1;
+}
+
 typedef struct {                                /* a pattern's drums, kept aside (while a groove plays in their place) */
     uint16_t hits[DRUM_COUNT][BAR_COUNT], accents[BAR_COUNT];
     uint8_t bars;

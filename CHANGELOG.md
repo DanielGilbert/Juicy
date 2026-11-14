@@ -75,3 +75,7 @@ The first version: Juicy on the FM-1, tested on the device since 11.11.2026.
 - Live recording: REC on a track with EDIT while the song plays (or PLAY while recording): the keys' notes sound at
   once and land on the nearest step, as long as they were held, over the notes that are there. The screen follows the
   bar that plays; GLO takes the whole take back.
+- Hints: a track with nothing in the pattern on the screen says what to do there (DRUMS at the right of the drums'
+  names, the others over the roll), with EDIT, without it and while recording. Recording, OCT- / OCT+ show the notes
+  the keys play now (e.g. `F2 TO C4`) for 2 s. New screenshots of DEMO1 in the README.
+- DRUMS: GROOVE's value is no longer half covered by the marks of the drums' pages.

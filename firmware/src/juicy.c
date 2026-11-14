@@ -167,7 +167,7 @@ static struct {
     /* what is on the screen (+ 1, so 0 means "draw it"): the page, its header, each part of its body, the knobs */
     uint32_t page_drawn, header_drawn, chord_name_drawn, chain_drawn, songs_drawn, library_drawn, naming_drawn, sound_drawn;
     uint32_t drum_row_drawn[DRUMS_PER_PAGE], drum_accents_drawn, drum_pages_drawn, mix_drawn[DRUM_COUNT];
-    uint32_t roll_drawn, roll_marker_drawn, knob_drawn[KNOB_COUNT], overlay_drawn;
+    uint32_t roll_drawn, roll_marker_drawn, knob_drawn[KNOB_COUNT], overlay_drawn, hints_drawn;
 } ui = {
     .shown_track = PAGE_DRUMS, .global_shown = 1, .fx_page = FX_PAGE_NOTES, .selected_drum = DRUM_KICK,
     .selected_notes = {33, 60, 57, 69}, .roll_lowest_notes = {28, 56, 53, 65},   /* A1, C4, A3, A4 */
@@ -487,6 +487,16 @@ static void oct_buttons(pass_t *pass)
         const uint32_t octave_melodic = pass->page - MELODIC_FIRST_PAGE;
         if (pass->buttons_pressed & (1u << BTN_OCT_DOWN) && ui.keyboard_octaves[octave_melodic] > 0u) ui.keyboard_octaves[octave_melodic]--;
         if (pass->buttons_pressed & (1u << BTN_OCT_UP) && ui.keyboard_octaves[octave_melodic] + 1u < KEYBOARD_OCTAVES) ui.keyboard_octaves[octave_melodic]++;
+        if (pass->buttons_pressed & (1u << BTN_OCT_DOWN | 1u << BTN_OCT_UP)) {   /* the notes the keys play, a moment over the page */
+            static char keys_range[12];         /* ("F2 TO G4": the overlay draws it later) */
+            const uint32_t first = keyboard_first_note(octave_melodic, ui.keyboard_octaves[octave_melodic]);
+            char *end = keys_range;
+            format_note(keys_range, first > MELODIC[octave_melodic].note_lowest ? first : MELODIC[octave_melodic].note_lowest);
+            while (*end) end++;
+            memcpy(end, " TO ", 4);
+            format_note(end + 4, first + KEY_COUNT - 1u < MELODIC[octave_melodic].note_highest ? first + KEY_COUNT - 1u : MELODIC[octave_melodic].note_highest);
+            overlay_show("KEYS", keys_range);
+        }
     }
     if (!ui.recording_on && pass->buttons_pressed & (1u << BTN_OCT_DOWN)) {   /* OCT- moves when it is let go: held, it takes the bar away */
         ui.oct_down_waits = 1;

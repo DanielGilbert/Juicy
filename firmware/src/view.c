@@ -150,11 +150,38 @@ static void body_clear(void)                    /* the page's body black, each p
     for (row = 0; row < DRUMS_PER_PAGE; row++) ui.drum_row_drawn[row] = 0;
 }
 
+/* what to do on a track's notes while it holds nothing in the pattern on the screen (as the songs' page says it): up to
+ * ROLL_HINTS lines, the rest 0 (DRUMS: one at the right of each row's name). What they say, as a number (+ 1) */
+static uint32_t page_hints(const pass_t *pass, const char *hints[ROLL_HINTS])
+{
+    static const char *const PUT_HINTS[TRACK_COUNT] = {"EDIT: PUT HITS IN", "EDIT: PUT NOTES IN", "EDIT: PUT HITS IN", "EDIT: PUT CHORDS IN", "EDIT: PUT NOTES IN"};
+    static const char *const TAP_HINTS[TRACK_COUNT] = {"TAP A STEP: A HIT", "TAP A STEP: A NOTE", "TAP A STEP: A HIT", "TAP A STEP: A CHORD", "TAP A STEP: A NOTE"};
+    static const char *const MORE_HINTS[TRACK_COUNT] = {"KNOB1: A GROOVE", "ALGORITHM: A BASS LINE", "ALGORITHM: A RHYTHM", "KNOB4: A PROGRESSION", "HOLD A STEP: ACCENT"};
+    hints[0] = hints[1] = hints[2] = 0;
+    if (pass->page >= TRACK_COUNT || pass->sound_page || pass->mix_page || !track_empty(pass->pattern, pass->page)) return 1u;
+    if (ui.recording_on) {
+        hints[0] = "THE KEYS RECORD";
+        hints[1] = playing ? "WHERE THE SONG IS" : "AT THE CURSOR";
+        hints[2] = "REC AGAIN: STOP";
+        return playing ? 2u : 3u;
+    }
+    if (!ui.edit_on) {
+        hints[0] = PUT_HINTS[pass->page];
+        hints[1] = pass->page == PAGE_DRUMS ? "SELECT: WHICH DRUM" : "THE KEYS PLAY";
+        return 4u;
+    }
+    hints[0] = TAP_HINTS[pass->page];
+    hints[1] = pass->page == PAGE_DRUMS ? "HOLD A STEP: ACCENT" : "REC: RECORD THE KEYS";
+    hints[2] = MORE_HINTS[pass->page];
+    return 5u;
+}
+
 /* the screen: only what changed */
 static void draw_screen(pass_t *pass)
 {
     uint32_t state;
     uint32_t knob;
+    const char *hints[ROLL_HINTS];
     /* the screen: only what changed. Each *_drawn holds what is on the screen (+ 1, so 0 means "draw it") */
     if (pass->page + (pass->sound_page ? 16u : 0u) + (pass->mix_page ? 32u : 0u) != ui.page_drawn) {   /* (a sound or mix page is a page of its own) */
         ui.page_drawn = pass->page + (pass->sound_page ? 16u : 0u) + (pass->mix_page ? 32u : 0u);
@@ -187,6 +214,13 @@ static void draw_screen(pass_t *pass)
         }
         return;
     }
+    state = page_hints(pass, hints);
+    if (state != ui.hints_drawn) {              /* (the hints came or went, or say something else: drawn again) */
+        uint32_t drum_row;
+        ui.hints_drawn = state;
+        ui.roll_drawn = 0;
+        for (drum_row = 0; drum_row < DRUMS_PER_PAGE; drum_row++) ui.drum_row_drawn[drum_row] = 0;
+    }
     if (pass->page == PAGE_GLOBAL) {
         state = 1u + (ui.shown_pattern | pass->marked_slot << 4 | (uint32_t)(chain_on != 0) << 12);   /* (a changed place sets chain_drawn to 0) */
         if (state != ui.chain_drawn) {
@@ -206,7 +240,7 @@ static void draw_screen(pass_t *pass)
             state = 1u + (hits | pass->marked_step << 16 | (uint32_t)(row_drum == ui.selected_drum) << 24 | row_drum << 25);
             if (state != ui.drum_row_drawn[row]) {
                 ui.drum_row_drawn[row] = state;
-                draw_drum_row(row_drum, row, hits, accents, row_drum == ui.selected_drum, pass->marked_step);
+                draw_drum_row(row_drum, row, hits, accents, row_drum == ui.selected_drum, pass->marked_step, hints[row]);
             }
         }
     } else if (pass->page == PAGE_NAMING) {
@@ -254,7 +288,7 @@ static void draw_screen(pass_t *pass)
         state = 1u + (ui.shown_bar | pass->shown_note << 4 | ui.roll_lowest_notes[pass->melodic] << 12 | ui.shown_pattern << 20 | ui.cursor_steps[pass->melodic] << 23);   /* (a changed step sets roll_drawn to 0) */
         if (state != ui.roll_drawn) {
             ui.roll_drawn = state;
-            draw_roll(pass->pattern, pass->melodic, ui.shown_bar, pass->shown_note, ui.roll_lowest_notes[pass->melodic], ui.cursor_steps[pass->melodic]);
+            draw_roll(pass->pattern, pass->melodic, ui.shown_bar, pass->shown_note, ui.roll_lowest_notes[pass->melodic], ui.cursor_steps[pass->melodic], hints);
         }
         if (1u + pass->marked_step != ui.roll_marker_drawn) {
             ui.roll_marker_drawn = 1u + pass->marked_step;

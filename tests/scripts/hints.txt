@@ -1,0 +1,37 @@
+# Hints: a track that holds nothing in the pattern on the screen says what to do (DRUMS: at the right of the rows'
+# names; BASS, ARP, PAD, LEAD: over the roll), as long as it is empty. Recording, OCT- / OCT+ show the keys' notes a
+# moment (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/hints.txt
+# HOME: to the drums. PRESETS four on: pattern E, empty. EDIT off, then on
+5 btn 8
+30 enc 6 4
+300 shot
+400 btn 6
+600 shot
+# SEL, OP2, EDIT: the bass, EDIT on; EDIT off
+700 btn 3
+710 keys 0x8
+750 keys 0
+760 btn 6
+900 shot
+1000 btn 6
+1200 shot
+# EDIT, REC: recording; OCT+: the keys an octave up, their notes over the roll; 2 s later the hints again
+1300 btn 6
+1400 btn 13
+1600 shot
+1700 btn 1
+1800 shot
+4000 shot
+# REC: recording ends. A step key (step 1): a note, the hints go
+4100 btn 13
+4200 keys 0x1
+4250 keys 0
+4500 shot
+# SEL, OP4: the pad, its hints
+4600 btn 3
+4610 keys 0x100
+4650 keys 0
+4660 btn 6
+4900 shot
+5000 end

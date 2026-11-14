@@ -142,11 +142,13 @@ playing bar; with the chain on, only the pattern on the screen records while it 
   one-bar count-in (PLAY's light, or a click). Today there is only step recording.
 - **Open:** how it starts (REC while playing?), what the count-in sounds like, overdub or replace.
 
-## Smaller ideas, not planned yet
+## Smaller ideas
 
-- Hints on the track pages (e.g. "HOLD A STEP: ACCENT"), like the SONGS and LIBRARY pages have.
-- Show the keyboard's octave while recording.
-- New screenshots in `docs/` (they still show the old first song).
+- [x] Hints on the track pages (e.g. "HOLD A STEP: ACCENT"), like the SONGS and LIBRARY pages have. Done
+  2026-11-14: while the track is empty in the pattern on the screen (the roll's, or at the right of the drums' names).
+  Script: `tests/scripts/hints.txt`.
+- [x] Show the keyboard's octave while recording. Done 2026-11-14: OCT- / OCT+ show the keys' notes in the overlay.
+- [x] New screenshots in `docs/` (they still show the old first song). Done 2026-11-14 from the host: DEMO1.
 
 ## Room and rules
 
