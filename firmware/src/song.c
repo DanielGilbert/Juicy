@@ -91,6 +91,35 @@ static uint32_t step_value(const volatile uint8_t *bar_notes, const volatile uin
     return melodic == MELODIC_PAD ? bar_notes[step] | note_gate(bar_gates, step) << 8 : bar_notes[step];
 }
 
+/* the chord the pad holds at a step of a pattern (bar: as the pattern plays it, the pad's own bars go round): the
+ * last one on the pad's track up to there, as the sequencer holds it (none from the pattern's start on), 0: none */
+static uint32_t pad_chord_at(const volatile pattern_t *pattern, uint32_t bar, uint32_t step)
+{
+    const uint32_t pad_bars = pattern->bar_totals[1u + MELODIC_PAD];
+    uint32_t looked;
+    bar %= BAR_COUNT;                           /* (a pattern has no more: the search stays short) */
+    for (looked = 0; looked < BAR_COUNT * STEPS_PER_BAR; looked++) {
+        const uint32_t pad_bar = bar % pad_bars;
+        const uint32_t chord = step_value(pattern->notes[MELODIC_PAD][pad_bar], pattern->gates[MELODIC_PAD][pad_bar], MELODIC_PAD, step);
+        if (chord) return chord;
+        if (step) step--;
+        else if (bar) {
+            bar--;
+            step = STEPS_PER_BAR - 1u;
+        } else break;
+    }
+    return 0;
+}
+
+static uint32_t chord_notes(uint32_t chord)     /* bit n: the chord (as on the pad's track, 0: none) has a note n semitones above a C */
+{
+    const uint32_t type = chord >> CHORD_SHIFT, root = chord & NOTE_MASK;
+    uint32_t notes = 0, note;
+    for (note = 0; chord && note < PAD_CHORDS[type].note_count; note++)
+        notes |= 1u << (root + PAD_CHORDS[type].intervals[note]) % 12u;
+    return notes;
+}
+
 static void bytes_move_up(void *to, const void *from, uint32_t count)   /* to at or after from: the last byte first (libc.c has no memmove) */
 {
     uint8_t *destination = to;
@@ -120,6 +149,12 @@ static uint32_t pattern_bars(const volatile pattern_t *pattern)   /* how long it
     return bars;
 }
 
+/* a song's key: KEY_OFF (no help with the notes), or a root (0 C .. 11 B) and minor or major */
+#define KEY_OFF 0u
+#define SONG_KEY(root, major) (1u + (root) * 2u + (major))
+#define SONG_KEY_MAX SONG_KEY(11u, 1u)
+static const uint16_t KEY_SCALES[2] = {0x5ADu, 0xAB5u};   /* bit n: n semitones above the root is in it: natural minor, major */
+
 typedef struct {
     pattern_t patterns[PATTERN_COUNT];
     uint8_t chain[CHAIN_SLOTS];                 /* the patterns in the order they play: pattern + 1, 0 = nothing there (skipped) */
@@ -135,16 +170,20 @@ typedef struct {
     uint8_t sounds[MELODIC_COUNT][SOUND_KNOBS]; /* each track's sound page (with its CUTOFF and DECAY above: its sound) */
     uint8_t sound_choices[MELODIC_COUNT];       /* the sound it came from: a preset, then USER1, USER2 */
     uint8_t name[NAME_LENGTH];                  /* its name (the NAMES page), as a pattern's */
+    uint8_t key;                                /* its key (JUICY's KNOB4): KEY_OFF, or SONG_KEY(root, major); was padding: beyond
+                                                   SONG_KEY_MAX it counts as KEY_OFF (song_key) */
 } song_t;
 /* a song kept with patterns that size: older ones (all before there were names) have no name of their own either */
 #define SONG_SIZE_KEPT(pattern_size) ((pattern_size) == sizeof(pattern_t) ? sizeof(song_t)                                       : sizeof(song_t) - PATTERN_COUNT * (sizeof(pattern_t) - (pattern_size)) - NAME_LENGTH)
 _Static_assert(offsetof(song_t, patterns) == 0u, "the patterns first: a song kept with smaller ones grows in place");
+_Static_assert(sizeof(song_t) == 3984u, "the key took the padding byte: a song is as big as before");
 
 static void song_grow(song_t *grown, uint32_t kept_pattern_size)   /* a song kept with patterns of an older size, read into its start */
 {
     bytes_move_up(&grown->chain, (const uint8_t *)grown + PATTERN_COUNT * kept_pattern_size, sizeof(song_t) - offsetof(song_t, chain));
     patterns_grow(grown->patterns, PATTERN_COUNT, kept_pattern_size);
     memset(grown->name, 0, sizeof grown->name);
+    grown->key = KEY_OFF;
 }
 
 static int name_valid(const volatile uint8_t *name)
@@ -185,6 +224,32 @@ static void name_set(volatile uint8_t *name, const char *text)   /* (the demo so
 }
 
 static volatile song_t song;
+
+static uint32_t song_key(void)                  /* the song's key; an old save's padding there counts as KEY_OFF */
+{
+    return song.key <= SONG_KEY_MAX ? song.key : KEY_OFF;
+}
+
+#define PAD_CHORD_AUTO PAD_CHORD_COUNT          /* the next chord's type (never on a step): the one that fits the song's key */
+
+static int note_in_key(uint32_t key, uint32_t note)   /* (KEY_OFF: every note is) */
+{
+    const uint32_t root = (key - 1u) / 2u, major = (key - 1u) % 2u;
+    return key == KEY_OFF || (KEY_SCALES[major] >> ((note % 12u + 12u - root) % 12u) & 1u);
+}
+
+/* a chord's type for a root: as chosen, or for PAD_CHORD_AUTO the one the song's key has on that root (its third and
+ * fifth in the key: major, minor or diminished; a root outside the key: major), without a key minor (as before) */
+static uint32_t pad_chord_for(uint32_t root, uint32_t chord)
+{
+    const uint32_t key = song_key();
+    if (chord != PAD_CHORD_AUTO) return chord;
+    if (key == KEY_OFF) return PAD_CHORD_MINOR;
+    if (note_in_key(key, root + 4u) && note_in_key(key, root + 7u)) return PAD_CHORD_MAJOR;
+    if (note_in_key(key, root + 3u) && note_in_key(key, root + 7u)) return PAD_CHORD_MINOR;
+    if (note_in_key(key, root + 3u) && note_in_key(key, root + 6u)) return PAD_CHORD_DIMINISHED;
+    return PAD_CHORD_MAJOR;
+}
 
 /* ---- the sounds of the melodic tracks. A sound is the four knobs of a track's sound page and its CUTOFF and
  * DECAY. Each track has a few named ones and two of the player's own (USER1, USER2: in flash, slot 1, for every
@@ -310,6 +375,40 @@ static int pattern_empty(const volatile pattern_t *pattern)
             for (step = 0; step < STEPS_PER_BAR; step++)
                 if (pattern->notes[melodic][bar][step]) return 0;
     }
+    return 1;
+}
+
+typedef struct {                                /* a pattern's drums, kept aside (while a groove plays in their place) */
+    uint16_t hits[DRUM_COUNT][BAR_COUNT], accents[BAR_COUNT];
+    uint8_t bars;
+} drums_kept_t;
+
+static void drums_keep(const volatile pattern_t *pattern, drums_kept_t *kept)
+{
+    uint32_t drum, bar;
+    for (bar = 0; bar < BAR_COUNT; bar++) {
+        for (drum = 0; drum < DRUM_COUNT; drum++) kept->hits[drum][bar] = pattern->drum_hits[drum][bar];
+        kept->accents[bar] = pattern->accents[0][bar];
+    }
+    kept->bars = pattern->bar_totals[0];
+}
+
+static void drums_put_back(volatile pattern_t *pattern, const drums_kept_t *kept)
+{
+    uint32_t drum, bar;
+    for (bar = 0; bar < BAR_COUNT; bar++) {
+        for (drum = 0; drum < DRUM_COUNT; drum++) pattern->drum_hits[drum][bar] = kept->hits[drum][bar];
+        pattern->accents[0][bar] = kept->accents[bar];
+    }
+    pattern->bar_totals[0] = kept->bars;
+}
+
+static int drums_kept_empty(const drums_kept_t *kept)   /* (no hit: nothing to ask about before it is replaced) */
+{
+    uint32_t drum, bar;
+    for (bar = 0; bar < BAR_COUNT; bar++)
+        for (drum = 0; drum < DRUM_COUNT; drum++)
+            if (kept->hits[drum][bar]) return 0;
     return 1;
 }
 

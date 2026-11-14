@@ -108,6 +108,7 @@ static void first_song(void)
     {
         static const char *const NAMES[] = {"GROOVE", "POWER", "PEAK", "BREAK"};
         song_names("ACID", NAMES, sizeof NAMES / sizeof NAMES[0]);
+        song.key = SONG_KEY(9u, 0u);            /* A minor */
     }
     song_chain(CHAIN, sizeof CHAIN);
 }
@@ -169,6 +170,7 @@ static void demo_uplifting(void)
     {
         static const char *const NAMES[] = {"INTRO", "GROOVE", "BREAK", "BUILD", "DROP", "OUTRO"};
         song_names("UPLIFT", NAMES, sizeof NAMES / sizeof NAMES[0]);
+        song.key = SONG_KEY(2u, 0u);            /* D minor */
     }
     song_chain(CHAIN, sizeof CHAIN);
 }
@@ -228,6 +230,44 @@ static void demo_lofi(void)
     {
         static const char *const NAMES[] = {"INTRO", "GROOVE", "MELODY", "FLOAT"};
         song_names("LO-FI", NAMES, sizeof NAMES / sizeof NAMES[0]);
+        song.key = SONG_KEY(0u, 1u);            /* C major (Dm7 G7 Cmaj7 Am7: ii V I vi) */
     }
     song_chain(CHAIN, sizeof CHAIN);
+}
+
+/* ---- the drum grooves (KNOB1 on DRUMS): well-known ones, a bar each with its accents, and a FILL for a bar that leads
+ * into the next part. GROOVE_OWN is the pattern's own drums. Steps as in drum_hits: bit s, step s */
+enum { GROOVE_OWN, GROOVE_HOUSE, GROOVE_TECHNO, GROOVE_TRANCE, GROOVE_BREAKS, GROOVE_GARAGE, GROOVE_DNB, GROOVE_DUBSTEP,
+       GROOVE_HIPHOP, GROOVE_FILL, GROOVE_COUNT };
+static const struct {
+    const char *name;
+    uint8_t tempo;                              /* the tempo it usually has (shown, never set); 0: none */
+    uint16_t hits[DRUM_COUNT], accents;         /* KICK, HAT, CLAP, OPEN HAT, SNARE, TOM; the accent row */
+} GROOVES[GROOVE_COUNT] = {
+    {"OWN", 0, {0}, 0},
+    {"HOUSE", 124, {0x1111, 0xAAAA, 0x1010, 0x4444, 0, 0}, 0x4444},     /* four on the floor, clap on 2 and 4, open hat between */
+    {"TECHNO", 130, {0x1111, 0xEEEE, 0x1010, 0, 0, 0}, 0x4444},         /* driving sixteenths of hat */
+    {"TRANCE", 138, {0x1111, 0x2222, 0x1010, 0x4444, 0, 0}, 0x4444},    /* the offbeat open hat */
+    {"BREAKS", 130, {0x0441, 0x5555, 0, 0, 0x1090, 0}, 0x1010},         /* a broken kick, a ghost snare */
+    {"GARAGE", 132, {0x0401, 0xCCCC, 0x1010, 0, 0, 0}, 0x4444},         /* 2-step: no kick on 2 and 4 */
+    {"DNB", 174, {0x0401, 0x5555, 0, 0, 0x1010, 0}, 0x1010},            /* drum and bass: the two-step at speed */
+    {"DUBSTEP", 140, {0x0401, 0x5555, 0, 0, 0x0100, 0}, 0x0100},        /* half time: the snare on 3 */
+    {"HIPHOP", 90, {0x0481, 0x5555, 0, 0, 0x1010, 0}, 0x1010},          /* boom-bap */
+    {"FILL", 0, {0x0011, 0x0055, 0x0010, 0, 0x0F00, 0xF000}, 0x1100},  /* half a beat, then snare and toms */
+};
+
+/* a groove into the pattern's drums: a groove is their one bar (the others emptied); FILL goes into that bar */
+static void groove_put(volatile pattern_t *pattern, uint32_t groove, uint32_t bar)
+{
+    uint32_t drum, other;
+    if (groove != GROOVE_FILL) {
+        pattern->bar_totals[0] = 1;
+        for (other = 1; other < BAR_COUNT; other++) {
+            for (drum = 0; drum < DRUM_COUNT; drum++) pattern->drum_hits[drum][other] = 0;
+            pattern->accents[0][other] = 0;
+        }
+        bar = 0;
+    }
+    for (drum = 0; drum < DRUM_COUNT; drum++) pattern->drum_hits[drum][bar] = GROOVES[groove].hits[drum];
+    pattern->accents[0][bar] = GROOVES[groove].accents;
 }

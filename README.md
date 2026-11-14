@@ -94,12 +94,12 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 
 | Screen | KNOB1 | KNOB2 | KNOB3 | KNOB4 | Also |
 | --- | --- | --- | --- | --- | --- |
-| **JUICY** | TEMPO | REVERB | SWING of the pattern on the screen: 50 (straight) to 80, every second step later | | the chain: with EDIT a lower key puts the pattern on the screen in that place, or takes it out. The song's name at the right |
+| **JUICY** | TEMPO | REVERB | SWING of the pattern on the screen: 50 (straight) to 80, every second step later | KEY of the song: OFF, or C MIN to B MAJ (see **The song's key** below) | the chain: with EDIT a lower key puts the pattern on the screen in that place, or takes it out. The song's name at the right |
 | **NAMES** (FX on JUICY) | LETTER: the character at the cursor (with EDIT): A to Z, 0 to 9, -, space | | | | the song's name and the name of the pattern on the screen, 8 characters each. **SELECT** or a lower key moves the cursor: keys 1 to 8 the song's name, 9 to 16 the pattern's |
-| **DRUMS** | | | | | **SELECT** (knob) picks the drum the keys edit, the orange row (EDIT or not); three drums at a time, the marks at the bottom say which page |
+| **DRUMS** | GROOVE: a well-known drum groove plays in place of the drums (see **Drum grooves** below) | | | its usual BPM | **SELECT** (knob) picks the drum the keys edit, the orange row (EDIT or not); three drums at a time, the marks at the bottom say which page |
 | **BASS, LEAD** | NOTE | CUTOFF | DECAY | LENGTH: how long a note is: 10 % to 90 % of a step, or 1 to 16 steps (to the bar's end at most) | a piano roll of the bar on the screen; a long note is one bar in it. See **Notes** below |
 | **ARP** | MODE of the pattern on the screen: UP, DOWN, UP/DN or RAND, over 1 to 3 octaves | CUTOFF | DECAY | LENGTH, as on BASS | hits, not notes: they play the pad's chord. See **ARP** below |
-| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD: MIN, MAJ, MIN7, MAJ7, DOM7, SUS2, SUS4, DIM, POWER (root and fifth), ROOT (the root alone) | | a chord sounds until the next one. See **Notes** below |
+| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD: AUTO (with a key: the chord the key has on that note), MIN, MAJ, MIN7, MAJ7, DOM7, SUS2, SUS4, DIM, POWER (root and fifth), ROOT (the root alone) | | a chord sounds until the next one. See **Notes** below |
 | **Sound page** (FX) | WAVE | RESO | ATTACK | ENV | the pad's: SPREAD, RESO, ATTACK, RELEASE. A `*` after the name: changed. With EDIT, **SEQ** keeps the sound as USER1, **REC** as USER2 (each asks twice). The keys always play here |
 | **Mix page** (FX) | LEVEL (DRUMS: the selected drum's, the orange row) | PAN | REVERB | ECHO | bars for each; on DRUMS one per drum. The keys always play here (on DRUMS: a key or SELECT picks the drum) |
 | **SONGS** (SAVE) | DEMO1 to DEMO3, NEW (empty), 1 to 8 | | | | **SEQ** loads (asks twice), **REC** saves your song there (twice over a song), **PLAY** lets you listen first. No EDIT needed; loading and saving only while stopped. A kept song shows its name |
@@ -123,6 +123,33 @@ On **SONGS** and **LIBRARY**, PLAY plays the selected place instead of your song
 sounds, its chain), a library pattern in the place of the pattern on the screen, round and round, with your song's
 sounds. Turn to another place and that one plays. PLAY again, another screen, PRESETS, SEQ or REC end it, and your
 song is exactly as it was.
+
+### The song's key
+
+Set a key on JUICY (KNOB4, with EDIT), and Juicy shows which notes fit. Notes outside the key still play; they are
+just not highlighted.
+
+- **BASS, ARP, LEAD:** the keys of notes in the key glow brighter, the others glow as before. The notes of the pad's
+  chord are lit: with EDIT the chord at the cursor, while the song plays (EDIT off) the one that sounds. The note the
+  knobs show blinks.
+- **The roll** (BASS, LEAD): the rows of the chord's notes are tinted at each step, and the chord's name (e.g.
+  `A MIN7`) stands next to the page's name.
+- **PAD:** the roots in the key glow brighter. CHORD starts at **AUTO**: a root gets the chord the key has there (in
+  A minor: A MIN, D MIN, F MAJ, B DIM...). With the cursor on a chord, NOTE moves its root and AUTO keeps it fitting.
+  Turning CHORD picks any chord by hand.
+- KEY OFF: everything as without it. The demo songs have their keys (DEMO1 A MIN, DEMO2 D MIN, DEMO3 C MAJ).
+
+### Drum grooves
+
+On DRUMS, with EDIT on, **KNOB1** (GROOVE) goes through well-known grooves: HOUSE, TECHNO, TRANCE, BREAKS, GARAGE,
+DNB, DUBSTEP, HIPHOP, each a bar with its accents, and FILL, a bar of snare and toms that leads into the next part.
+The groove plays at once in place of the drums, and KNOB4's place shows the tempo it usually has (the song's tempo
+stays). Nothing is changed yet, REC is lit:
+
+- **REC** keeps it: a groove becomes the drums' one bar, FILL goes into the bar on the screen. If the drums held
+  something, REC asks once more (REC AGAIN).
+- **Back to OWN**, another page, PRESETS or EDIT off: the drums are back as they were.
+- While a groove only plays, the step keys wait; keep it first, then change it.
 
 ### Accents
 

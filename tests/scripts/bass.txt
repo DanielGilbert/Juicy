@@ -28,12 +28,12 @@
 3700 btn 8
 3800 enc 2 2
 4100 shot
-# back to the drums (OP1), their third drum
+# back to the drums (OP1), their third drum (SELECT two on: CLAP)
 4290 btn 3
 4300 keys 0x2
 4350 keys 0
 4360 btn 6
-4400 enc 2 2
+4400 enc 0 2
 4700 shot
 5500 btn 12
 12000 end

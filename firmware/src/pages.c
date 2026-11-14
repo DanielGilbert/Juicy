@@ -136,13 +136,14 @@ static void knob_pages(pass_t *pass)
     }
 }
 
-/* JUICY (EDIT): TEMPO, REVERB, the SWING of the pattern on the screen; the lower keys are the chain's places */
+/* JUICY (EDIT): TEMPO, REVERB, the SWING of the pattern on the screen, the song's KEY; the lower keys are the chain's places */
 static void global_input(pass_t *pass)
 {
     uint32_t step;
     if (!ui.external_clock) pass->song_changed |= turn_setting(&song.tempo, pass->detents[0], TEMPO_MIN, TEMPO_MAX);
     pass->song_changed |= turn_setting(&song.reverb, pass->detents[1], 0, REVERB_MAX);
     pass->song_changed |= turn_setting(&song.patterns[ui.shown_pattern].swing, pass->detents[2], 0, SWING_MAX);
+    pass->song_changed |= turn_setting(&song.key, pass->detents[3], KEY_OFF, SONG_KEY_MAX);
     for (step = 0; step < CHAIN_SLOTS; step++) {
         if (pass->keys_edit && pass->keys_pressed >> STEP_KEYS[step] & 1u) {   /* the pattern on the screen goes there; it is taken away if it was there */
             song.chain[step] = (uint8_t)(song.chain[step] == ui.shown_pattern + 1u ? 0u : ui.shown_pattern + 1u);
@@ -165,11 +166,21 @@ static void naming_input(pass_t *pass)
 }
 
 /* DRUMS: SELECT or a played key picks the drum. EDIT: a step key tapped puts the drum's hit there or takes it away;
- * held, the step's accent (every drum on it) goes on or off, and on an empty step the drum goes there, accented */
+ * held, the step's accent (every drum on it) goes on or off, and on an empty step the drum goes there, accented.
+ * KNOB1 (EDIT): a groove plays in place of the drums (REC keeps it; meanwhile the step keys wait) */
 static void drums_input(pass_t *pass)
 {
     volatile uint16_t *hits;
-    uint32_t step, drum;
+    uint32_t step, drum, groove = turned_value(ui.groove_shown, pass->detents[0], GROOVE_OWN, GROOVE_COUNT - 1u);
+    if (groove != ui.groove_shown) {
+        if (ui.groove_shown == GROOVE_OWN) {
+            drums_keep(pass->pattern, &ui.groove_kept);
+            ui.groove_pattern = ui.shown_pattern;
+        } else drums_put_back(pass->pattern, &ui.groove_kept);
+        if (groove != GROOVE_OWN) groove_put(pass->pattern, groove, ui.shown_bar);
+        ui.groove_shown = groove;
+        ui.groove_asked = 0;
+    }
     ui.selected_drum = turned_value(ui.selected_drum, pass->select_detents, 0, DRUM_COUNT - 1u);
     for (drum = 0; drum < DRUM_COUNT; drum++)   /* played: the lower keys from the left are the drums, and the one hit is the one EDIT changes */
         if (pass->keys_play && pass->keys_pressed >> STEP_KEYS[drum] & 1u) {
@@ -177,6 +188,10 @@ static void drums_input(pass_t *pass)
             drum_auditions[drum]++;
         }
     hits = &pass->pattern->drum_hits[ui.selected_drum][ui.shown_bar];
+    if (ui.groove_shown != GROOVE_OWN) {     /* (a groove that only plays: nothing to edit yet) */
+        pass->tapped_steps = 0;
+        pass->held_step = NO_STEP;
+    }
     for (step = 0; step < STEPS_PER_BAR; step++)
         if (pass->tapped_steps >> step & 1u) {
             *hits ^= (uint16_t)(1u << step);
@@ -214,6 +229,16 @@ static void track_cursor(pass_t *pass, track_edit_t *edit)   /* SELECT: the curs
                                & (melodic == MELODIC_PAD ? ~0u : NOTE_MASK);
 }
 
+static uint32_t chord_choice_turned(uint32_t chord, int32_t detents)   /* the next chord's type turned: AUTO (with a key) before MIN */
+{
+    const uint32_t lowest = song_key() != KEY_OFF ? 0u : 1u;   /* (choices: 0 AUTO, 1 + type) */
+    uint32_t choice = chord == PAD_CHORD_AUTO ? 0u : chord + 1u;
+    if (!detents) return chord;
+    if (choice < lowest) choice = lowest;       /* (AUTO without a key: as MIN) */
+    choice = turned_value(choice, detents, lowest, PAD_CHORD_COUNT);
+    return choice ? choice - 1u : PAD_CHORD_AUTO;
+}
+
 /* the knobs: CUTOFF, DECAY; ARP's MODE. EDIT, the cursor on a note: they show it and change it (and the next note is
  * like it); else they set the next note */
 static void track_knobs(pass_t *pass, track_edit_t *edit)
@@ -230,12 +255,15 @@ static void track_knobs(pass_t *pass, track_edit_t *edit)
         const uint32_t start = edit->cursor_start, value = step_value(edit->bar_notes, edit->bar_gates, melodic, start);
         pass->shown_note = melodic == MELODIC_ARP ? ui.selected_notes[melodic] : turned_value(value & NOTE_MASK, pass->detents[0], edit->note_lowest, edit->note_highest);
         pass->shown_chord = melodic == MELODIC_PAD ? turned_value(value >> CHORD_SHIFT, pass->detents[2], 0, PAD_CHORD_COUNT - 1u) : 0u;
+        if (melodic == MELODIC_PAD && pass->detents[0] && !pass->detents[2] && ui.selected_chord == PAD_CHORD_AUTO && song_key() != KEY_OFF)
+            pass->shown_chord = pad_chord_for(pass->shown_note, PAD_CHORD_AUTO);   /* AUTO: a new root, the type that fits the key */
         pass->shown_length = note_gate(edit->bar_gates, start) ? note_gate(edit->bar_gates, start) : GATE_TENTHS_MAX + note_steps(edit->bar_notes, melodic, start);
         pass->shown_length = melodic == MELODIC_PAD ? LENGTH_WHOLE_FIRST : turned_value(pass->shown_length, pass->detents[3], 1, GATE_TENTHS_MAX + STEPS_PER_BAR - start);
         if (pass->detents[0] || (melodic == MELODIC_PAD ? pass->detents[2] : pass->detents[3])) {
             put_note(edit->bar_notes, edit->bar_gates, melodic, start, melodic == MELODIC_ARP ? ARP_HIT : CHORD(pass->shown_note, pass->shown_chord), pass->shown_length);
             ui.selected_notes[melodic] = pass->shown_note;
-            if (melodic == MELODIC_PAD) ui.selected_chord = pass->shown_chord;
+            if (melodic == MELODIC_PAD && (pass->detents[2] || ui.selected_chord != PAD_CHORD_AUTO || song_key() == KEY_OFF))
+                ui.selected_chord = pass->shown_chord;   /* (AUTO stays AUTO while only the root moves) */
             else ui.selected_lengths[melodic] = pass->shown_length;
             if (pass->detents[0] || melodic == MELODIC_PAD) edit->audition_value = CHORD(pass->shown_note, pass->shown_chord);
             ui.roll_drawn = 0;
@@ -243,10 +271,10 @@ static void track_knobs(pass_t *pass, track_edit_t *edit)
         }
     } else {
         ui.selected_notes[melodic] = turned_value(ui.selected_notes[melodic], pass->detents[0], edit->note_lowest, edit->note_highest);
-        if (melodic == MELODIC_PAD) ui.selected_chord = turned_value(ui.selected_chord, pass->detents[2], 0, PAD_CHORD_COUNT - 1u);
+        if (melodic == MELODIC_PAD) ui.selected_chord = chord_choice_turned(ui.selected_chord, pass->detents[2]);
         else ui.selected_lengths[melodic] = turned_value(ui.selected_lengths[melodic], pass->detents[3], 1, LENGTH_MAX);
         if (pass->detents[0] || (melodic == MELODIC_PAD && pass->detents[2]))
-            edit->audition_value = ui.selected_notes[melodic] | (melodic == MELODIC_PAD ? ui.selected_chord << CHORD_SHIFT : 0u);
+            edit->audition_value = ui.selected_notes[melodic] | (melodic == MELODIC_PAD ? pad_chord_for(ui.selected_notes[melodic], ui.selected_chord) << CHORD_SHIFT : 0u);
     }
 }
 
@@ -262,7 +290,7 @@ static void track_keys(pass_t *pass, track_edit_t *edit)
         if (!((pass->keys_play || ui.recording_on) && pass->keys_pressed >> key & 1u) || key_note < edit->note_lowest || key_note > edit->note_highest) continue;
         ui.selected_notes[melodic] = key_note;
         ui.held_key = key;
-        edit->audition_value = key_note | (melodic == MELODIC_PAD ? ui.selected_chord << CHORD_SHIFT : 0u);
+        edit->audition_value = key_note | (melodic == MELODIC_PAD ? pad_chord_for(key_note, ui.selected_chord) << CHORD_SHIFT : 0u);
         placed_value = melodic == MELODIC_ARP ? ARP_HIT : edit->audition_value;   /* (ARP: the key sounds, a hit is placed) */
         if (!ui.recording_on) continue;
         length = melodic == MELODIC_PAD ? LENGTH_WHOLE_FIRST : ui.selected_lengths[melodic];
@@ -283,7 +311,7 @@ static void track_keys(pass_t *pass, track_edit_t *edit)
 static void track_steps(pass_t *pass, track_edit_t *edit)
 {
     const uint32_t melodic = pass->melodic;
-    const uint32_t placed_value = melodic == MELODIC_ARP ? ARP_HIT : ui.selected_notes[melodic] | (melodic == MELODIC_PAD ? ui.selected_chord << CHORD_SHIFT : 0u);
+    const uint32_t placed_value = melodic == MELODIC_ARP ? ARP_HIT : ui.selected_notes[melodic] | (melodic == MELODIC_PAD ? pad_chord_for(ui.selected_notes[melodic], ui.selected_chord) << CHORD_SHIFT : 0u);
     volatile uint16_t *bar_accents = &pass->pattern->accents[pass->page][ui.shown_bar];
     uint32_t step;
     if (pass->held_step != NO_STEP && melodic == MELODIC_PAD) {
@@ -315,7 +343,8 @@ static void track_steps(pass_t *pass, track_edit_t *edit)
 static void roll_follow(pass_t *pass, const track_edit_t *edit)
 {
     const uint32_t melodic = pass->melodic, shown_note = pass->shown_note;
-    const uint32_t chord_rows = melodic == MELODIC_PAD ? PAD_CHORDS[pass->shown_chord].intervals[PAD_CHORDS[pass->shown_chord].note_count - 1u] : 0u;
+    const uint32_t shown_type = pad_chord_for(shown_note, pass->shown_chord);   /* (AUTO: the type it is for that note) */
+    const uint32_t chord_rows = melodic == MELODIC_PAD ? PAD_CHORDS[shown_type].intervals[PAD_CHORDS[shown_type].note_count - 1u] : 0u;
     const uint32_t rows_above = chord_rows > ROLL_MARGIN_ROWS ? chord_rows : ROLL_MARGIN_ROWS;
     uint32_t lowest = ui.roll_lowest_notes[melodic];
     if (shown_note < lowest + ROLL_MARGIN_ROWS)

@@ -144,17 +144,20 @@ static struct {
     uint32_t places_with_song;                  /* bit p: place p holds a song */
     uint8_t place_names[PLACES_KEPT][NAME_LENGTH];   /* the kept songs' names (the songs' page shows them) */
     uint32_t naming_cursor;                     /* the NAMES page's cursor: 0 .. 7 the song's name, 8 .. 15 the pattern's */
+    uint32_t groove_shown, groove_asked, groove_pattern;   /* DRUMS: the groove that plays in place of the drums (GROOVE_OWN: none), REC asked, in which pattern */
+    drums_kept_t groove_kept;                   /* (meanwhile: the drums as they were) */
     uint32_t place_to_save;                     /* the place the song goes to as soon as nothing sounds, PLACE_COUNT = none */
     uint32_t preview_on, preview_page, preview_place, preview_wanted;   /* PLAY on a place: its song (pattern) plays; on which page, which place; PLAY asked for one */
     uint32_t kept_chain_on, kept_shown_pattern, kept_shown_bar;   /* (meanwhile: as they were with the song) */
     uint32_t unsaved, changed_ms;               /* the song changed (since when): it goes to flash once nothing sounds */
     /* what is on the screen (+ 1, so 0 means "draw it"): the page, its header, each part of its body, the knobs */
-    uint32_t page_drawn, header_drawn, chain_drawn, songs_drawn, library_drawn, naming_drawn, sound_drawn;
+    uint32_t page_drawn, header_drawn, chord_name_drawn, chain_drawn, songs_drawn, library_drawn, naming_drawn, sound_drawn;
     uint32_t drum_row_drawn[DRUMS_PER_PAGE], drum_accents_drawn, drum_pages_drawn, mix_drawn[DRUM_COUNT];
     uint32_t roll_drawn, roll_marker_drawn, knob_drawn[KNOB_COUNT];
 } ui = {
     .shown_track = PAGE_DRUMS, .global_shown = 1, .fx_page = FX_PAGE_NOTES, .selected_drum = DRUM_KICK,
     .selected_notes = {33, 60, 57, 69}, .roll_lowest_notes = {28, 56, 53, 65},   /* A1, C4, A3, A4 */
+    .selected_chord = PAD_CHORD_AUTO,
     .selected_lengths = {LENGTH_WHOLE_FIRST, LENGTH_WHOLE_FIRST, LENGTH_WHOLE_FIRST, LENGTH_WHOLE_FIRST},
     .keyboard_octaves = {1, 1, 1, 1}, .step_key_waiting = NO_STEP, .library_note = LIBRARY_NOTE_NONE, .splash_shown = 1,
     .clock_start = CLOCK_START_NONE, .sound_note = SOUND_NOTE_NONE, .selected_place = PLACE_FIRST_KEPT, .songs_note = SONGS_NOTE_NONE,
@@ -333,6 +336,21 @@ static void preview_end(pass_t *pass)
     }
 }
 
+static void groove_drop(volatile pattern_t *pattern)   /* the groove goes, the drums are back as they were */
+{
+    if (ui.groove_shown == GROOVE_OWN) return;
+    drums_put_back(pattern, &ui.groove_kept);
+    ui.groove_shown = GROOVE_OWN;
+    ui.groove_asked = 0;
+}
+
+/* a groove that plays in place of the drums goes (another page, PRESETS, EDIT off) */
+static void groove_end(pass_t *pass)
+{
+    if (ui.groove_shown != GROOVE_OWN && (pass->page != PAGE_DRUMS || pass->mix_page || pass->presets_detents || !ui.edit_on))
+        groove_drop(&song.patterns[ui.groove_pattern]);
+}
+
 /* a preview goes on to another place, or starts (PLAY, above) */
 static void preview_follow(pass_t *pass)
 {
@@ -386,7 +404,14 @@ static void rec_button(pass_t *pass)
     }
     if (ui.rec_waits && pass->buttons_released & (1u << BTN_REC)) {
         ui.rec_waits = 0;
-        if (pass->notes_page) ui.recording_on = !ui.recording_on;
+        if (ui.groove_shown != GROOVE_OWN) {    /* DRUMS: the groove that plays is kept (asked again over drums that held something) */
+            if (!drums_kept_empty(&ui.groove_kept) && !ui.groove_asked) ui.groove_asked = 1;
+            else {
+                ui.groove_shown = GROOVE_OWN;
+                ui.groove_asked = 0;
+                pass->song_changed = 1;
+            }
+        } else if (pass->notes_page) ui.recording_on = !ui.recording_on;
         else if (pass->page == PAGE_GLOBAL && !pattern_empty(&song.patterns[ui.shown_pattern])) {
             uint32_t index;                     /* a copy goes to the first empty pattern, which is then the one on the screen */
             for (index = 0; index < PATTERN_COUNT; index++)
@@ -398,7 +423,7 @@ static void rec_button(pass_t *pass)
                 }
         }
     }
-    if (ui.rec_waits && fm1_ms - ui.rec_ms >= HOLD_MS) {
+    if (ui.rec_waits && fm1_ms - ui.rec_ms >= HOLD_MS && ui.groove_shown == GROOVE_OWN) {
         ui.rec_waits = 0;                       /* held: JUICY empties the pattern, DRUMS the selected drum, a track itself; the bars stay */
         pattern_clear(&song.patterns[ui.shown_pattern], pass->page == PAGE_GLOBAL ? ALL_TRACKS : pass->page, ui.selected_drum);
         ui.roll_drawn = 0;
@@ -479,7 +504,7 @@ static void save_when_quiet(void)
         ui.library_unsaved = 0;
         if (!slot_save(0, &library, sizeof library) && ui.library_note == LIBRARY_NOTE_SAVING) ui.library_note = LIBRARY_NOTE_STORED;
     }
-    if (ui.unsaved && !playing && sound_quiet() && fm1_ms - ui.changed_ms > 2000u) {   /* an erase stalls the sound: only when stopped and silent */
+    if (ui.unsaved && !playing && sound_quiet() && fm1_ms - ui.changed_ms > 2000u && ui.groove_shown == GROOVE_OWN) {   /* an erase stalls the sound: only when stopped and silent (and not a groove that only plays) */
         settings_save((const void *)&song, sizeof song);
         ui.unsaved = 0;
     }
@@ -521,6 +546,7 @@ static void app_main(void)                      /* what was kept comes back, the
         play_button(pass);
         choose_page(pass);
         preview_end(pass);
+        groove_end(pass);
         knob_pages(pass);
         preview_follow(pass);
         rec_button(pass);

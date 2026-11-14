@@ -40,7 +40,9 @@
  * read before it is unchanged). fm1_led_dim[col]: the glow (landmarks, notes under tiles), FM1_GLOW_NS
  * (~1/24 of a lit LED); fm1_led_bg[col]: the backlight (menu LIGHTS), fm1_led_bg_ns, shorter. TIMER4
  * times the pulses bit by bit; only a pulse longer than the whole shift waits for the rest. An LED in
- * several layers takes the brightest. fm1_led_key/btn helpers address them by id.
+ * several layers takes the brightest. fm1_led_quarter[col] (Juicy): lit on every fourth frame (~1/4, ~230 Hz,
+ * no flicker seen), a level between the glow and lit with no pulse to wait for (a 32 us backlight pulse looked
+ * the same and kept the tick busy ~27 % of the time). fm1_led_key/btn helpers address them by id.
  */
 #pragma once
 #include <stdint.h>
@@ -106,6 +108,7 @@ static uint8_t fm1_led[FM1_NCOL];
 #define FM1__NS_T(ns) (((uint32_t)(ns) * FM1_TICKS_PER_US + 500u) / 1000u)   /* ns -> TIMER4 ticks */
 static uint8_t fm1_led_dim[FM1_NCOL];   /* same layout as fm1_led: the glow */
 static uint8_t fm1_led_bg[FM1_NCOL];    /* same layout: the backlight (labels readable in the dark) */
+static uint8_t fm1_led_quarter[FM1_NCOL];   /* same layout: lit on every fourth frame (see top) */
 static volatile uint16_t fm1_led_bg_ns; /* the backlight pulse a frame (ns), 0 = off (menu LIGHTS) */
 
 static void fm1__led_lines(uint32_t rowmask)
@@ -291,7 +294,8 @@ static void fm1_input_tick(void)
 {
     uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u, i;
     uint32_t w = 0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u);
-    uint32_t lit = fm1_led[p], a = fm1_led_dim[p] & ~lit, b = fm1_led_bg[p] & ~lit & ~a;
+    const uint32_t quarter = (fm1_in.frames & 3u) == 0u;   /* (the quarter layer's frame) */
+    uint32_t lit = fm1_led[p] | (quarter ? fm1_led_quarter[p] : 0u), a = fm1_led_dim[p] & ~lit, b = fm1_led_bg[p] & ~lit & ~a;
     uint32_t ta = a ? FM1__NS_T(FM1_GLOW_NS) : 0u, tb = b ? FM1__NS_T(fm1_led_bg_ns) : 0u;
     uint32_t tmax = ta > tb ? ta : tb;
     fm1__led_lines(0);
@@ -313,7 +317,7 @@ static void fm1_input_tick(void)
     } else {
         fm1__sr_word(w);
     }
-    fm1__led_lines(fm1_led[n]);
+    fm1__led_lines(fm1_led[n] | (quarter ? fm1_led_quarter[n] : 0u));
     fm1__tick_col = (uint8_t)n;
     fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
     if (n == 0u)

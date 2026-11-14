@@ -51,3 +51,12 @@ The first version: Juicy on the FM-1, tested on the device since 11.11.2026.
   pattern's. The demo songs and their patterns have names. Songs and patterns kept before load without names.
 - Start screen: the light runs over the 16 lower keys from left to right, starting when the screen comes; the buttons
   stay dark until it is over.
+- The song's key (JUICY's KNOB4, OFF by default): BASS, ARP and LEAD light the notes of the pad's chord and let the
+  notes of the key glow brighter (the others still play), the shown note blinks; the roll tints the chord's notes and
+  names the chord; PAD's CHORD has AUTO, the chord the key has on a root. Songs kept before have no key.
+- The brighter glow (the key's notes, a bar's beats) is now a key lit on every fourth scan round instead of a short
+  pulse: easier to tell from the glow, and the key scan no longer waits for it (it took ~27 % of the time with many
+  such keys, now ~7 %).
+- Drum grooves: on DRUMS with EDIT, KNOB1 (GROOVE) plays HOUSE, TECHNO, TRANCE, BREAKS, GARAGE, DNB, DUBSTEP, HIPHOP or a
+  FILL in place of the drums, with its usual BPM shown; REC keeps it (asks again over drums that held something),
+  turning back to OWN or leaving brings the drums back.

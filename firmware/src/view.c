@@ -3,6 +3,14 @@
  * start screen's light first), the screen (only what changed, with screen.c's draw_ functions), the knobs' places.
  * juicy.c includes this after them. */
 
+/* the pad's chord a track's notes go with: with EDIT (or stopped) the one at the cursor, playing the one that plays */
+static uint32_t chord_at_hand(const pass_t *pass)
+{
+    if (playing && !ui.edit_on)
+        return pad_chord_at(&song.patterns[playing_pattern], pass->step_now / STEPS_PER_BAR, pass->step_now % STEPS_PER_BAR);
+    return pad_chord_at(pass->pattern, ui.shown_bar, ui.cursor_steps[pass->melodic]);
+}
+
 /* the keys: one that does something now glows, one that is on or selected is lit */
 static void light_keys(pass_t *pass)
 {
@@ -46,12 +54,25 @@ static void light_keys(pass_t *pass)
         for (drum = 0; drum < DRUM_COUNT; drum++)
             pass->keys_glowing |= 1u << STEP_KEYS[drum];
         pass->keys_lit = 1u << STEP_KEYS[ui.selected_drum];
-    } else if (pass->page != PAGE_GLOBAL) {     /* the keys with a note of the track, the shown note's key lit */
-        const uint32_t first_note = keyboard_first_note(pass->melodic, ui.keyboard_octaves[pass->melodic]);
-        for (key = 0; key < KEY_COUNT; key++)
-            if (first_note + key >= MELODIC[pass->melodic].note_lowest && first_note + key <= MELODIC[pass->melodic].note_highest) pass->keys_glowing |= 1u << key;
-        if (pass->shown_note >= first_note && pass->shown_note < first_note + KEY_COUNT)
-            pass->keys_lit = 1u << (pass->shown_note - first_note);
+    } else if (pass->page != PAGE_GLOBAL) {     /* the keys with a note of the track, the shown note's key lit. With a key: */
+        const uint32_t first_note = keyboard_first_note(pass->melodic, ui.keyboard_octaves[pass->melodic]), song_key_now = song_key();
+        const uint32_t chord_now = song_key_now != KEY_OFF && pass->melodic != MELODIC_PAD ? chord_notes(chord_at_hand(pass)) : 0u;
+        for (key = 0; key < KEY_COUNT; key++) { /* the chord's notes lit (not the pad's: its keys are roots), the key's brighter */
+            const uint32_t note = first_note + key;
+            if (note < MELODIC[pass->melodic].note_lowest || note > MELODIC[pass->melodic].note_highest) continue;
+            if (chord_now >> note % 12u & 1u) pass->keys_lit |= 1u << key;
+            else if (song_key_now != KEY_OFF && note_in_key(song_key_now, note)) pass->keys_glowing_bright |= 1u << key;
+            else pass->keys_glowing |= 1u << key;
+        }
+        if (pass->shown_note >= first_note && pass->shown_note < first_note + KEY_COUNT) {
+            const uint32_t shown = 1u << (pass->shown_note - first_note);
+            if (song_key_now != KEY_OFF) {      /* (it blinks, so it stands out among the lit) */
+                pass->keys_lit &= ~shown;
+                pass->keys_glowing &= ~shown;
+                pass->keys_glowing_bright &= ~shown;
+            }
+            if (song_key_now == KEY_OFF || fm1_ms / CURSOR_BLINK_MS & 1u) pass->keys_lit |= shown;
+        }
     }
 }
 
@@ -115,7 +136,7 @@ static void light_up(pass_t *pass)
                                  : ui.shown_bar + 1u < pass->bar_total || (ui.edit_on && pass->page < TRACK_COUNT && pass->bar_total < BAR_COUNT));
     fm1_led_key(BTN_OCT_DOWN, ui.recording_on && ui.keyboard_octaves[pass->melodic] < 1u);   /* recording: the keys are an octave that way */
     fm1_led_key(BTN_OCT_UP, ui.recording_on && ui.keyboard_octaves[pass->melodic] > 1u);
-    fm1_led_key(BTN_REC, ui.recording_on != 0);
+    fm1_led_key(BTN_REC, ui.recording_on || ui.groove_shown != GROOVE_OWN);   /* (a groove that plays: REC keeps it) */
     fm1_led_key_glow(BTN_REC, pass->page == PAGE_SONGS ? ui.selected_place >= PLACE_FIRST_KEPT : pass->page == PAGE_LIBRARY || ((pass->page == PAGE_GLOBAL || (pass->page < TRACK_COUNT && !pass->mix_page)) && ui.edit_on));
 }
 
@@ -138,6 +159,14 @@ static void draw_screen(pass_t *pass)
     if (state != ui.header_drawn) {
         ui.header_drawn = state;
         draw_header(pass->page, ui.shown_pattern, pass->bar_total, ui.shown_bar, pass->marked_bar, ui.edit_on != 0, pass->page < TRACK_COUNT && muted_tracks >> pass->page & 1u);
+        ui.chord_name_drawn = 0;                /* (the header covered it) */
+    }
+    if (pass->notes_page && (pass->melodic == MELODIC_BASS || pass->melodic == MELODIC_LEAD) && song_key() != KEY_OFF) {
+        const uint32_t chord = chord_at_hand(pass);   /* (with a key) the chord the notes go with, after the page's name */
+        if (1u + chord != ui.chord_name_drawn) {
+            ui.chord_name_drawn = 1u + chord;
+            draw_chord_name(pass->page, chord);
+        }
     }
     if (pass->page == PAGE_GLOBAL) {
         state = 1u + (ui.shown_pattern | pass->marked_slot << 4 | (uint32_t)(chain_on != 0) << 12);   /* (a changed place sets chain_drawn to 0) */
@@ -228,7 +257,7 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
     static const char *const PAD_LABELS[KNOB_COUNT] = {"NOTE", "CUTOFF", "CHORD", ""};
     static const char *const ARP_LABELS[KNOB_COUNT] = {"MODE", "CUTOFF", "DECAY", "LENGTH"};
     static const char *const MIX_LABELS[KNOB_COUNT] = {"LEVEL", "PAN", "REVERB", "ECHO"};
-    static const char *const GLOBAL_LABELS[KNOB_COUNT] = {"TEMPO", "REVERB", "SWING", ""};
+    static const char *const GLOBAL_LABELS[KNOB_COUNT] = {"TEMPO", "REVERB", "SWING", "KEY"};
     static const char *const SONGS_LABELS[KNOB_COUNT] = {"SONG", "", "", ""};
     static const char *const LIBRARY_LABELS[KNOB_COUNT] = {"PLACE", "", "", ""};
     static const char *const NAMING_LABELS[KNOB_COUNT] = {"LETTER", "", "", ""};
@@ -271,15 +300,21 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
         view->number[1] = 0;
         if (!view->value) view->text = "SPACE";
         view->big = view->value != 0u;
-    } else if (page == PAGE_GLOBAL) {           /* TEMPO (EXT: the clock's), REVERB, SWING in % (50 straight) */
-        const uint32_t values[KNOB_COUNT] = {ui.external_clock ? ui.external_bpm : song.tempo, song.reverb, 50u + song.patterns[ui.shown_pattern].swing, 0u};
+    } else if (page == PAGE_GLOBAL) {           /* TEMPO (EXT: the clock's), REVERB, SWING in % (50 straight), KEY */
+        const uint32_t values[KNOB_COUNT] = {ui.external_clock ? ui.external_bpm : song.tempo, song.reverb, 50u + song.patterns[ui.shown_pattern].swing, song_key()};
         view->label = knob == 0u && ui.external_clock ? "EXT" : GLOBAL_LABELS[knob];
         view->value = values[knob];
-        format_number(view->number, view->value);
-    } else if (page == PAGE_DRUMS) {            /* (the selected drum's row is orange: that says it) */
-        view->label = "";
-        view->value = 0;
-        view->big = 0;
+        if (knob == 3u) {                       /* KEY: a word, small */
+            format_key(view->number, view->value);
+            view->big = 0;
+        } else format_number(view->number, view->value);
+    } else if (page == PAGE_DRUMS) {            /* GROOVE (a word), its usual BPM or REC's question; the selected drum's row is orange: that says it */
+        view->label = knob == 0u ? "GROOVE" : knob == 3u && ui.groove_asked ? "REC" : knob == 3u && GROOVES[ui.groove_shown].tempo ? "BPM" : "";
+        view->value = knob == 0u ? ui.groove_shown : knob == 3u ? (ui.groove_asked ? 1000u : GROOVES[ui.groove_shown].tempo) : 0u;
+        view->big = knob == 3u && !ui.groove_asked;
+        if (knob == 0u) view->text = GROOVES[ui.groove_shown].name;
+        else if (knob == 3u && ui.groove_asked) view->text = "AGAIN";
+        else format_number(view->number, view->value);
     } else {                                    /* a track's notes: NOTE (ARP: MODE), CUTOFF, DECAY (PAD: CHORD), LENGTH */
         const uint32_t values[KNOB_COUNT] = {arp_shown ? pass->pattern->arp_mode : pass->shown_note, song.cutoff[melodic],
                                              pad_shown ? pass->shown_chord : song.decay[melodic], pass->shown_length};
@@ -290,7 +325,7 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
             view->big = 0;
         } else if (knob == 0u) format_note(view->number, view->value);
         else if (pad_shown && knob == 2u) {
-            view->text = CHORD_NAMES[view->value];
+            view->text = CHORD_NAMES[view->value == PAD_CHORD_AUTO && song_key() == KEY_OFF ? PAD_CHORD_MINOR : view->value];   /* (AUTO without a key: MIN) */
             view->big = 0;
         } else if (knob == 3u && view->value < LENGTH_WHOLE_FIRST) {   /* LENGTH: 10 % .. 90 % of a step, then whole steps */
             view->number[0] = (char)('0' + view->value);

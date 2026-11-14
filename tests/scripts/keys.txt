@@ -1,0 +1,47 @@
+# The song's key: KNOB4 on JUICY (EDIT). With a key, a track's keys glow brighter where they are in it, the notes of
+# the pad's chord are lit, and the note the knobs show blinks (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/keys.txt
+# EDIT, KNOB4 19 on: A MIN. PRESETS one on: pattern B (POWER chords A2 A2 F2 G2). SEQ: the chain off, B loops
+100 btn 6
+200 enc 5 19
+300 enc 6 1
+400 btn 11
+600 shot
+# SEL, OP5, SEL: LEAD, the keys play. Stopped: the cursor's chord (step 1: A2 POWER): A and E lit, the rest of A minor
+# brighter, the others glow, A4 (the shown note) blinks
+700 btn 3
+750 keys 0x400
+800 keys 0
+850 btn 3
+1500 shot
+# PLAY: the chord that plays; bar 3 (F2 POWER, from 5692 at 130 BPM): F and C lit
+2000 btn 12
+6000 shot
+6500 btn 12
+# EDIT: the roll; the rows of A and E (bars 1, 2), F and C (bar 3) tinted. OCT+ twice: bar 3
+6600 btn 6
+6800 shot
+6900 btn 1
+7000 btn 1
+7200 shot
+# SEL, OP4, EDIT: PAD, bar 3 (OCT+ above), the cursor on its chord. SELECT four on: step 5, empty: CHORD shows AUTO
+7600 btn 3
+7650 keys 0x100
+7700 keys 0
+7750 btn 6
+8000 enc 0 4
+8200 shot
+# step 5 (lower key 7) tapped: A3 with AUTO is A MIN (in A minor). KNOB1 five up: D MIN, three up: F MAJ, one down:
+# E MIN, five down: B DIM (each the chord the key has there)
+8300 keys 0x80
+8350 keys 0
+8500 shot
+8600 enc 2 5
+8800 shot
+8900 enc 2 3
+9100 shot
+9200 enc 2 -1
+9400 shot
+9500 enc 2 -5
+9700 shot
+9800 end

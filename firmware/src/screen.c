@@ -11,6 +11,7 @@
 #define C_STEP_EVEN_BEAT RGB(40, 40, 44)        /* also: a bar that does not play */
 #define C_ROLL_ODD_BEAT RGB(26, 26, 28)         /* a piano roll's background, the same beats, darker */
 #define C_ROLL_EVEN_BEAT RGB(14, 14, 16)
+#define C_ROLL_CHORD RGB(52, 32, 8)             /* (with a key) the rows of the notes of the pad's chord at that step: a warm tint */
 #define HEADER_HEIGHT 40u
 #define BODY_TOP 50u
 #define BODY_HEIGHT 138u
@@ -33,7 +34,7 @@ static const char *const PAGE_NAMES[] = {"DRUMS", "BASS", "ARP", "PAD", "LEAD", 
 static const char *const DRUM_NAMES[DRUM_COUNT] = {"KICK", "HAT", "CLAP", "OPEN HAT", "SNARE", "TOM"};
 #define DRUMS_PER_PAGE 3u                       /* the drums' page shows three at a time */
 #define DRUM_PAGES (DRUM_COUNT / DRUMS_PER_PAGE)
-static const char *const CHORD_NAMES[PAD_CHORD_COUNT] = {"MIN", "MAJ", "MIN7", "MAJ7", "DOM7", "SUS2", "SUS4", "DIM", "POWER", "ROOT"};
+static const char *const CHORD_NAMES[PAD_CHORD_COUNT + 1u] = {"MIN", "MAJ", "MIN7", "MAJ7", "DOM7", "SUS2", "SUS4", "DIM", "POWER", "ROOT", "AUTO"};
 static const uint8_t STEP_KEYS[STEPS_PER_BAR] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* the lower keys, left to right */
 static const uint8_t TRACK_KEYS[TRACK_COUNT] = {1, 3, 5, 8, 10};   /* the upper keys printed OP1 .. OP5 */
 static const uint8_t MUTE_KEYS[TRACK_COUNT] = {13, 15, 17, 20, 22};   /* (with SEL) the same five an octave up */
@@ -53,12 +54,21 @@ static void format_number(char *text, uint32_t value)   /* 0..999 */
     *text = 0;
 }
 
+static const char *const NOTE_NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
 static void format_note(char *text, uint32_t note)      /* MIDI 12..127: "C1", "F#2" */
 {
-    static const char *const NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-    const char *name = NAMES[note % 12u];
+    const char *name = NOTE_NAMES[note % 12u];
     while (*name) *text++ = *name++;
     *text++ = (char)('0' + note / 12u - 1u);
+    *text = 0;
+}
+
+static void format_key(char *text, uint32_t key)        /* a song's key: "OFF", "A MIN", "C# MAJ" */
+{
+    const char *part = key == KEY_OFF ? "OFF" : NOTE_NAMES[(key - 1u) / 2u];
+    while (*part) *text++ = *part++;
+    for (part = key == KEY_OFF ? "" : (key - 1u) % 2u ? " MAJ" : " MIN"; *part; ) *text++ = *part++;
     *text = 0;
 }
 
@@ -152,6 +162,24 @@ static void draw_header(uint32_t page, uint32_t pattern_index, uint32_t bar_tota
         if (bar == marked_bar) cv_rect(x, 32, 18, 3, C_WHITE);
     }
     cv_blit(0, 0);
+}
+
+/* (with a key, on BASS's and LEAD's notes) the chord they go with, after the page's name: "A MIN7"; 0: none */
+static void draw_chord_name(uint32_t page, uint32_t chord)
+{
+    const int32_t left = (int32_t)(4u + text_w(&FONT_L, PAGE_NAMES[page]) + 10u);
+    char text[16];
+    char *end = text;
+    const char *part;
+    if (chord) {
+        for (part = NOTE_NAMES[(chord & NOTE_MASK) % 12u]; *part; ) *end++ = *part++;
+        *end++ = ' ';
+        for (part = CHORD_NAMES[chord >> CHORD_SHIFT]; *part; ) *end++ = *part++;
+    }
+    *end = 0;
+    cv_begin((uint32_t)(146 - left), 18, C_BLACK);
+    cv_text(0, 0, &FONT_S, text, C_HIT);
+    cv_blit((uint32_t)left, 12);
 }
 
 /* the chain: a box per place with its pattern's letter, orange where it is the pattern on the screen, a mark under
@@ -352,7 +380,8 @@ static void draw_drum_pages(uint32_t drum_page)   /* a mark per page of drums, u
 
 /* a melodic track's bar as a piano roll: a column per step, a row per note (lowest_note at the bottom), the selected
  * note's row lit. A note above or below what fits is a thin line at that edge. The pad's chords show their other
- * notes above the root, dimmer. The cursor's step is framed. */
+ * notes above the root, dimmer. With a key (BASS, LEAD), the rows of the pad's chord's notes are tinted at each step.
+ * The cursor's step is framed. */
 static void draw_roll(const volatile pattern_t *pattern, uint32_t melodic, uint32_t bar, uint32_t selected_note, uint32_t lowest_note, uint32_t cursor_step)
 {
     uint32_t step;
@@ -370,6 +399,13 @@ static void draw_roll(const volatile pattern_t *pattern, uint32_t melodic, uint3
             if (note) cv_rect(note_x, (int32_t)ROLL_HEIGHT / 3, note_width, (int32_t)ROLL_HEIGHT / 3, C_HIT);
             if (accented) cv_rect(note_x, (int32_t)ROLL_HEIGHT / 3, note_width, ACCENT_BAND_HEIGHT, C_WHITE);
             continue;
+        }
+        if (melodic != MELODIC_PAD && song_key() != KEY_OFF) {   /* with a key: the chord's notes' rows, tinted */
+            const uint32_t chord_now = chord_notes(pad_chord_at(pattern, bar, step));
+            uint32_t row;
+            for (row = 0; row < ROLL_ROWS; row++)
+                if (chord_now >> (lowest_note + row) % 12u & 1u)
+                    cv_rect(step_x(step), (int32_t)((ROLL_ROWS - 1u - row) * ROLL_ROW_HEIGHT), 12, (int32_t)ROLL_ROW_HEIGHT - 1, C_ROLL_CHORD);
         }
         cv_rect(step_x(step), selected_y, 12, (int32_t)ROLL_ROW_HEIGHT - 1, step / 4u % 2u ? C_STEP_EVEN_BEAT : C_STEP_ODD_BEAT);
         if (!note) continue;

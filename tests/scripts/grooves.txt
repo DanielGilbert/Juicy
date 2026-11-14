@@ -1,0 +1,35 @@
+# Drum grooves: on DRUMS with EDIT, KNOB1 plays a groove in place of the drums (nothing kept yet, REC lit); REC keeps
+# it (asked again over drums that hold something); OWN, another page, PRESETS or EDIT off: the drums back
+# (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/grooves.txt
+# HOME: to the drums. EDIT, SEQ: the chain off, pattern A loops. PLAY
+5 btn 8
+10 btn 6
+20 btn 11
+100 btn 12
+500 shot
+# KNOB1 three on: TRANCE plays (138 BPM shown), the drums' rows show it. Three back: OWN, the drums as they were
+1000 enc 2 3
+1500 shot
+3000 enc 2 -3
+3500 shot
+# KNOB1 one on: HOUSE. REC: the drums held something, so it asks; REC again: kept
+4000 enc 2 1
+4500 btn 13
+4700 shot
+5000 btn 13
+5300 shot
+# OCT+: a second bar for the drums. KNOB1 to the end: FILL in bar 2; REC twice: kept
+6000 btn 1
+6100 enc 2 20
+6300 shot
+6500 btn 13
+6600 btn 13
+7000 shot
+# KNOB1 two back (TECHNO plays), PRESETS one on: pattern B, the groove gone, A's drums as kept
+7500 enc 2 -7
+7800 enc 6 1
+8000 enc 6 -1
+8300 shot
+9000 btn 12
+9500 end

@@ -71,19 +71,14 @@ static void fm1_led_key_glow(uint32_t id, int on)   /* as fm1_led_key, the dim l
                 else fm1_led_dim[p] &= (uint8_t)~(1u << r);
             }
 }
-#ifndef FM1_GLOW_BRIGHT_NS
-#define FM1_GLOW_BRIGHT_NS 32000u               /* the brighter glow's pulse a frame (ns): 8 times FM1_GLOW_NS, ~1/3 of a lit LED
-                                                 * (the input tick waits for it: at most 65535, fm1_led_bg_ns is 16 bits) */
-#endif
-static void fm1_led_key_glow_bright(uint32_t id, int on)   /* a glow that stands out among the glowing: the backlight layer, where the key does not glow */
+static void fm1_led_key_glow_bright(uint32_t id, int on)   /* a glow that stands out among the glowing: lit one frame in four (the quarter layer) */
 {
     uint32_t p, r;
-    fm1_led_bg_ns = FM1_GLOW_BRIGHT_NS;
     for (p = 0; p < FM1_NCOL; p++)
         for (r = 1; r < 5u; r++)
             if (FM1_KEYMAP[r][p] == (int8_t)id) {
-                if (on) fm1_led_bg[p] |= (uint8_t)(1u << r);
-                else fm1_led_bg[p] &= (uint8_t)~(1u << r);
+                if (on) fm1_led_quarter[p] |= (uint8_t)(1u << r);
+                else fm1_led_quarter[p] &= (uint8_t)~(1u << r);
             }
 }
 #endif
