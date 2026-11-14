@@ -60,3 +60,8 @@ The first version: Juicy on the FM-1, tested on the device since 11.11.2026.
 - Drum grooves: on DRUMS with EDIT, KNOB1 (GROOVE) plays HOUSE, TECHNO, TRANCE, BREAKS, GARAGE, DNB, DUBSTEP, HIPHOP or a
   FILL in place of the drums, with its usual BPM shown; REC keeps it (asks again over drums that held something),
   turning back to OWN or leaving brings the drums back.
+- Chord progressions: on PAD with EDIT, KNOB4 (CHORDS) plays EPIC, DREAM, RISE, POP, MINIMAL or LOFI in place of the
+  pad's chords, a chord a bar in the song's key (KEY OFF: A minor); REC keeps it (asks again over chords), turning back
+  to OWN or leaving brings the chords back.
+- Undo: GLO brings back the song as it was before the last change (changes less than a second apart are one, loading
+  a song is one too); GLO again brings the change back. GLO glows when there is something to bring back.

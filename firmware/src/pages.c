@@ -354,6 +354,31 @@ static void roll_follow(pass_t *pass, const track_edit_t *edit)
     ui.roll_lowest_notes[melodic] = lowest;
 }
 
+/* PAD, KNOB4 (EDIT): a progression plays in place of the pad's chords (stopped: its first chord sounds); REC keeps it,
+ * meanwhile NOTE, CHORD, the step keys and recording wait */
+static void progression_input(pass_t *pass, track_edit_t *edit)
+{
+    const uint32_t progression = turned_value(ui.progression_shown, pass->detents[3], PROGRESSION_OWN, PROGRESSION_COUNT - 1u);
+    if (progression != ui.progression_shown) {
+        if (ui.progression_shown == PROGRESSION_OWN) {
+            pad_keep(pass->pattern, &ui.progression_kept);
+            ui.progression_pattern = ui.shown_pattern;
+        } else pad_put_back(pass->pattern, &ui.progression_kept);
+        if (progression != PROGRESSION_OWN) progression_put(pass->pattern, progression);
+        if (progression != PROGRESSION_OWN && !playing)
+            edit->audition_value = step_value(pass->pattern->notes[MELODIC_PAD][0], pass->pattern->gates[MELODIC_PAD][0], MELODIC_PAD, 0);
+        ui.progression_shown = progression;
+        ui.progression_asked = 0;
+        ui.roll_drawn = 0;
+    }
+    if (ui.progression_shown != PROGRESSION_OWN) {
+        pass->detents[0] = pass->detents[2] = 0;
+        pass->tapped_steps = 0;
+        pass->held_step = NO_STEP;
+        ui.recording_on = 0;
+    }
+}
+
 /* BASS, ARP, PAD, LEAD (their notes page, and on a sound or mix page what still works there: the keys played): the
  * cursor, the knobs, the keys played, the step keys, the roll */
 static void track_input(pass_t *pass)
@@ -364,6 +389,7 @@ static void track_input(pass_t *pass)
     edit.note_highest = MELODIC[pass->melodic].note_highest;
     edit.audition_value = 0;
     track_cursor(pass, &edit);
+    if (pass->melodic == MELODIC_PAD && pass->notes_page) progression_input(pass, &edit);
     edit.bar_notes = pass->pattern->notes[pass->melodic][ui.shown_bar];
     edit.bar_gates = pass->pattern->gates[pass->melodic][ui.shown_bar];
     track_knobs(pass, &edit);

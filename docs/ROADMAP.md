@@ -70,7 +70,15 @@ one only plays. Names: HOUSE TECHNO TRANCE BREAKS GARAGE DNB DUBSTEP HIPHOP FILL
 - **Storage:** none (tables in flash). Groove tables are worth checking by ear (render WAVs on the host first).
 - **Open:** whether a groove fills one bar or all of the drums' bars (suggestion: one bar, the fill its own entry).
 
-### 3. [ ] Chord progressions on PAD
+### 3. [x] Chord progressions on PAD
+
+**Done 2026-11-14 (built, flashed, liked on the device).** Decided on the way: **KNOB4** (CHORDS; PAD had no
+KNOB4) instead of ALGORITHM, and it works as the grooves do: plays at once (stopped: the first chord sounds), REC
+keeps it (asks again over chords), OWN / another page / PRESETS / EDIT off drop it; NOTE, CHORD, the step keys and
+recording wait meanwhile. A chord a bar, the pad gets the progression's bars (MINIMAL: two). Names: EPIC (i VI III
+VII), DREAM (i iv VII III), RISE (VI VII i), POP (I V vi IV), MINIMAL (i VII), LOFI (ii V I vi, 7ths). The pop one is
+I V vi IV, not vi IV I V as planned: that is EPIC's chords. A minor progression in a major key (or the other way) plays
+in the relative key, so it stays in the key. Script: `tests/scripts/progressions.txt`.
 
 - **On PAD, ALGORITHM** puts a well-known progression into the pattern's four bars, in the song's key (needs step 1;
   KEY OFF: in A minor): i–VI–III–VII (the "epic" trance one: Am F C G), i–iv–VII–III, VI–VII–i, vi–IV–I–V
@@ -78,7 +86,13 @@ one only plays. Names: HOUSE TECHNO TRANCE BREAKS GARAGE DNB DUBSTEP HIPHOP FILL
 - Asks twice over existing chords. With steps 1 and 2 this already makes a song's skeleton.
 - **Storage:** none.
 
-### 4. [ ] Undo
+### 4. [x] Undo
+
+**Done 2026-11-14 (built, flashed, liked on the device).** Decided on the way:
+**GLO**, and a second press swaps back (redo). Changes less than a second apart are one (a knob turned, a few steps
+tapped); loading a song is a change too. Two song copies in RAM, not one: the song before the last change, and the
+song as the last change left it (a change is only known after it happened); RAM 51 of 96 KB. Not while a preview, a
+groove or a progression plays. Script: `tests/scripts/undo.txt`.
 
 - One level: the last change to the song comes back. A free button: **GLO** (or ENV / LFO; decide on the device).
 - **Cost:** a second `song_t` in RAM (about 4 KB; 59 KB are free). Snapshot before each change that sets
@@ -117,7 +131,7 @@ one only plays. Names: HOUSE TECHNO TRANCE BREAKS GARAGE DNB DUBSTEP HIPHOP FILL
   488 B; the library holds 16 patterns in a 16 KB slot. Tables (grooves, progressions) cost flash, not storage.
 - **Audio:** the audio interrupt peaks at 24 % of its 5.8 ms (measured 2026-11-13); [RULES.md](RULES.md) asks for
   under 50 %.
-- **Free controls:** ALGORITHM outside the sound pages, the ENV, LFO, ARP and GLO buttons, JUICY's KNOB4 (step 1
+- **Free controls:** ALGORITHM outside the sound pages, the ENV, LFO and ARP buttons (step 4 takes GLO), JUICY's KNOB4 (step 1
   takes it), the upper keys outside OP1 .. OP5 and the mute keys.
 - **Where code goes:** a page's knobs and keys in `pages.c`, what it shows in `view.c`, the data in `song.c`, the
   demo songs in `demos.c` (see the file map at the top of `firmware/src/juicy.c`).

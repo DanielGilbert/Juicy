@@ -271,3 +271,48 @@ static void groove_put(volatile pattern_t *pattern, uint32_t groove, uint32_t ba
     for (drum = 0; drum < DRUM_COUNT; drum++) pattern->drum_hits[drum][bar] = GROOVES[groove].hits[drum];
     pattern->accents[0][bar] = GROOVES[groove].accents;
 }
+
+/* ---- the chord progressions (KNOB4 on PAD): well-known ones, a chord a bar, in the song's key (KEY OFF: A minor).
+ * A progression is a minor or a major one; in a key of the other kind it plays in the relative key (A minor's is
+ * C major: the same notes), so its chords stay in the key. PROGRESSION_OWN is the pattern's own chords */
+enum { PROGRESSION_OWN, PROGRESSION_EPIC, PROGRESSION_DREAM, PROGRESSION_RISE, PROGRESSION_POP, PROGRESSION_MINIMAL,
+       PROGRESSION_LOFI, PROGRESSION_COUNT };
+#define PROGRESSION_ROOT_LOWEST 45u             /* the roots go A2 .. G#3 (as the demo songs' chords) */
+static const struct {
+    const char *name;
+    uint8_t major;                              /* 0: from the minor key's root (i), 1: from the major key's (I) */
+    uint8_t chord_count;                        /* the pad's bars, a chord on each */
+    uint8_t roots[BAR_COUNT];                   /* semitones above that root */
+    uint8_t types[BAR_COUNT];                   /* PAD_CHORD_* */
+} PROGRESSIONS[PROGRESSION_COUNT] = {
+    {"OWN", 0, 0, {0}, {0}},
+    {"EPIC", 0, 4, {0, 8, 3, 10}, {PAD_CHORD_MINOR, PAD_CHORD_MAJOR, PAD_CHORD_MAJOR, PAD_CHORD_MAJOR}},   /* i VI III VII: Am F C G, the trance anthem */
+    {"DREAM", 0, 4, {0, 5, 10, 3}, {PAD_CHORD_MINOR, PAD_CHORD_MINOR, PAD_CHORD_MAJOR, PAD_CHORD_MAJOR}},  /* i iv VII III: Am Dm G C */
+    {"RISE", 0, 4, {8, 10, 0, 0}, {PAD_CHORD_MAJOR, PAD_CHORD_MAJOR, PAD_CHORD_MINOR, PAD_CHORD_MINOR}},   /* VI VII i: F G Am, up to home */
+    {"POP", 1, 4, {0, 7, 9, 5}, {PAD_CHORD_MAJOR, PAD_CHORD_MAJOR, PAD_CHORD_MINOR, PAD_CHORD_MAJOR}},     /* I V vi IV: C G Am F */
+    {"MINIMAL", 0, 2, {0, 10}, {PAD_CHORD_MINOR, PAD_CHORD_MAJOR}},                                        /* i VII: Am G */
+    {"LOFI", 1, 4, {2, 7, 0, 9}, {PAD_CHORD_MINOR7, PAD_CHORD_DOMINANT7, PAD_CHORD_MAJOR7, PAD_CHORD_MINOR7}},   /* ii V I vi with 7ths: Dm7 G7 Cmaj7 Am7 */
+};
+
+/* a progression into the pattern's pad: its chords on the first step of each of its bars (the pad has as many),
+ * everything else emptied */
+static void progression_put(volatile pattern_t *pattern, uint32_t progression)
+{
+    const uint32_t key = song_key() != KEY_OFF ? song_key() : SONG_KEY(9u, 0u);   /* (no key: A minor) */
+    const uint32_t key_root = (key - 1u) / 2u, key_major = (key - 1u) % 2u;
+    const uint32_t progression_root = key_root + (PROGRESSIONS[progression].major == key_major ? 0u : key_major ? 9u : 3u);   /* (the relative key's root) */
+    uint32_t bar, step;
+    pattern->bar_totals[1u + MELODIC_PAD] = PROGRESSIONS[progression].chord_count;
+    for (bar = 0; bar < BAR_COUNT; bar++) {
+        for (step = 0; step < STEPS_PER_BAR; step++) {
+            pattern->notes[MELODIC_PAD][bar][step] = 0;
+            set_note_gate(pattern->gates[MELODIC_PAD][bar], step, 0);
+        }
+        if (bar < PROGRESSIONS[progression].chord_count) {
+            const uint32_t pitch_class = (progression_root + PROGRESSIONS[progression].roots[bar]) % 12u;
+            const uint32_t chord = CHORD(PROGRESSION_ROOT_LOWEST + (pitch_class + 12u - PROGRESSION_ROOT_LOWEST % 12u) % 12u, PROGRESSIONS[progression].types[bar]);
+            pattern->notes[MELODIC_PAD][bar][0] = (uint8_t)chord;
+            set_note_gate(pattern->gates[MELODIC_PAD][bar], 0, chord >> 8);
+        }
+    }
+}

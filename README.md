@@ -86,6 +86,7 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | **PRESETS** (knob) | the pattern on the screen, A to H, on every screen |
 | **SEQ** | with EDIT: the chain on or off (lit: the chain plays; dark: the pattern on the screen loops) |
 | **REC** | on JUICY with EDIT: copies the pattern on the screen into the first empty one. On BASS, ARP, PAD, LEAD with EDIT: **step recording** on or off (REC lit, see below). **Holding REC** with EDIT clears: on JUICY the whole pattern on the screen, on DRUMS the selected drum (the orange row), on BASS, ARP, PAD, LEAD that track, in the pattern on the screen. The bars stay |
+| **GLO** | **undo**: the song as it was before the last change (glows when there is one; changes less than a second apart count as one, a song loaded too). GLO again brings the change back. Not while a preview, a groove or a progression plays |
 | **ALGORITHM** (knob) | on a sound page with EDIT: the next or previous sound |
 | **SELECT** (knob) | on DRUMS: the drum the keys edit (the orange row), also on its mix page. On BASS, ARP, PAD, LEAD: the **cursor**, a step framed in the roll, on through the track's bars (EDIT or not; with EDIT its key blinks). Stopped, the note it comes to sounds (not on ARP) |
 | **MASTER** (knob) | the volume of the FM-1 itself. Over USB the FM-1 is also a sound card that a computer or phone records from, always at full level: turn MASTER down to record with a silent FM-1 |
@@ -99,7 +100,7 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | **DRUMS** | GROOVE: a well-known drum groove plays in place of the drums (see **Drum grooves** below) | | | its usual BPM | **SELECT** (knob) picks the drum the keys edit, the orange row (EDIT or not); three drums at a time, the marks at the bottom say which page |
 | **BASS, LEAD** | NOTE | CUTOFF | DECAY | LENGTH: how long a note is: 10 % to 90 % of a step, or 1 to 16 steps (to the bar's end at most) | a piano roll of the bar on the screen; a long note is one bar in it. See **Notes** below |
 | **ARP** | MODE of the pattern on the screen: UP, DOWN, UP/DN or RAND, over 1 to 3 octaves | CUTOFF | DECAY | LENGTH, as on BASS | hits, not notes: they play the pad's chord. See **ARP** below |
-| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD: AUTO (with a key: the chord the key has on that note), MIN, MAJ, MIN7, MAJ7, DOM7, SUS2, SUS4, DIM, POWER (root and fifth), ROOT (the root alone) | | a chord sounds until the next one. See **Notes** below |
+| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD: AUTO (with a key: the chord the key has on that note), MIN, MAJ, MIN7, MAJ7, DOM7, SUS2, SUS4, DIM, POWER (root and fifth), ROOT (the root alone) | CHORDS: a well-known progression plays in place of the chords (see **Chord progressions** below) | a chord sounds until the next one. See **Notes** below |
 | **Sound page** (FX) | WAVE | RESO | ATTACK | ENV | the pad's: SPREAD, RESO, ATTACK, RELEASE. A `*` after the name: changed. With EDIT, **SEQ** keeps the sound as USER1, **REC** as USER2 (each asks twice). The keys always play here |
 | **Mix page** (FX) | LEVEL (DRUMS: the selected drum's, the orange row) | PAN | REVERB | ECHO | bars for each; on DRUMS one per drum. The keys always play here (on DRUMS: a key or SELECT picks the drum) |
 | **SONGS** (SAVE) | DEMO1 to DEMO3, NEW (empty), 1 to 8 | | | | **SEQ** loads (asks twice), **REC** saves your song there (twice over a song), **PLAY** lets you listen first. No EDIT needed; loading and saving only while stopped. A kept song shows its name |
@@ -150,6 +151,28 @@ stays). Nothing is changed yet, REC is lit:
   something, REC asks once more (REC AGAIN).
 - **Back to OWN**, another page, PRESETS or EDIT off: the drums are back as they were.
 - While a groove only plays, the step keys wait; keep it first, then change it.
+
+### Chord progressions
+
+On PAD, with EDIT on, **KNOB4** (CHORDS) goes through well-known progressions, a chord a bar, in the song's key
+(KEY OFF: A minor):
+
+| Name | Chords | In A minor |
+|---|---|---|
+| EPIC | i VI III VII (the trance anthem) | Am F C G |
+| DREAM | i iv VII III | Am Dm G C |
+| RISE | VI VII i | F G Am Am |
+| POP | I V vi IV | C G Am F |
+| MINIMAL | i VII (two bars) | Am G |
+| LOFI | ii V I vi with 7ths | Dm7 G7 Cmaj7 Am7 |
+
+A minor progression in a major key (and the other way round) plays in the relative key, so its chords stay in the key:
+in C major, EPIC is Am F C G too. The progression plays at once in place of the pad's chords (stopped: its first
+chord sounds). Nothing is changed yet, REC is lit:
+
+- **REC** keeps it: the pad gets its bars, a chord on each. If the pad held chords, REC asks once more (REC AGAIN).
+- **Back to OWN**, another page, PRESETS or EDIT off: the chords are back as they were.
+- While a progression only plays, NOTE, CHORD, the step keys and recording wait; keep it first, then change it.
 
 ### Accents
 

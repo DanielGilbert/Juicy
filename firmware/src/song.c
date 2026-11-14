@@ -412,6 +412,34 @@ static int drums_kept_empty(const drums_kept_t *kept)   /* (no hit: nothing to a
     return 1;
 }
 
+typedef struct {                                /* a pattern's pad, kept aside (while a progression plays in its place) */
+    uint8_t notes[BAR_COUNT][STEPS_PER_BAR], gates[BAR_COUNT][STEPS_PER_BAR / 2u];
+    uint8_t bars;
+} pad_kept_t;
+
+static void pad_keep(const volatile pattern_t *pattern, pad_kept_t *kept)
+{
+    memcpy(kept->notes, (const void *)pattern->notes[MELODIC_PAD], sizeof kept->notes);
+    memcpy(kept->gates, (const void *)pattern->gates[MELODIC_PAD], sizeof kept->gates);
+    kept->bars = pattern->bar_totals[1u + MELODIC_PAD];
+}
+
+static void pad_put_back(volatile pattern_t *pattern, const pad_kept_t *kept)
+{
+    memcpy((void *)pattern->notes[MELODIC_PAD], kept->notes, sizeof kept->notes);
+    memcpy((void *)pattern->gates[MELODIC_PAD], kept->gates, sizeof kept->gates);
+    pattern->bar_totals[1u + MELODIC_PAD] = kept->bars;
+}
+
+static int pad_kept_empty(const pad_kept_t *kept)   /* (no chord: nothing to ask about before it is replaced) */
+{
+    uint32_t bar, step;
+    for (bar = 0; bar < BAR_COUNT; bar++)
+        for (step = 0; step < STEPS_PER_BAR; step++)
+            if (kept->notes[bar][step]) return 0;
+    return 1;
+}
+
 #define ALL_TRACKS (1u + MELODIC_COUNT)         /* pattern_clear: every track */
 
 /* emptied, its bars stay: every track (ALL_TRACKS, the accents too), the drums' drum (the drums' accents are every

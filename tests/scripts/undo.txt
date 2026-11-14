@@ -1,0 +1,30 @@
+# Undo: GLO brings back the song as it was before the last change, GLO again the change (changes less than a second
+# apart are one). Stopped, on the drums with EDIT (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/undo.txt
+# HOME: to the drums. EDIT: the lower keys are the steps
+5 btn 8
+10 btn 6
+500 shot
+# The kick's steps 1 and 2 changed (lower keys 0 and 2), one change: they are less than a second apart
+600 keys 0x1
+650 keys 0
+700 keys 0x4
+750 keys 0
+1000 shot
+# Step 3 changed (lower key 4), a second change
+2500 keys 0x10
+2550 keys 0
+2800 shot
+# GLO: step 3 as it was (as at 1000). GLO again: changed again (as at 2800)
+3000 btn 7
+3300 shot
+3500 btn 7
+3800 shot
+# GLO (as at 1000), then step 4 changed (lower key 6): a new change. GLO: step 4 as it was (as at 1000 again)
+4000 btn 7
+4500 keys 0x40
+4550 keys 0
+4800 shot
+5000 btn 7
+5300 shot
+5500 end

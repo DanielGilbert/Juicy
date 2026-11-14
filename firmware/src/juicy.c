@@ -146,6 +146,9 @@ static struct {
     uint32_t naming_cursor;                     /* the NAMES page's cursor: 0 .. 7 the song's name, 8 .. 15 the pattern's */
     uint32_t groove_shown, groove_asked, groove_pattern;   /* DRUMS: the groove that plays in place of the drums (GROOVE_OWN: none), REC asked, in which pattern */
     drums_kept_t groove_kept;                   /* (meanwhile: the drums as they were) */
+    uint32_t progression_shown, progression_asked, progression_pattern;   /* PAD: the progression that plays in place of the chords (PROGRESSION_OWN: none), the same */
+    pad_kept_t progression_kept;                /* (meanwhile: the pad as it was) */
+    uint32_t undo_ready, undo_change_ms;        /* GLO has a song to bring back; when the song last changed */
     uint32_t place_to_save;                     /* the place the song goes to as soon as nothing sounds, PLACE_COUNT = none */
     uint32_t preview_on, preview_page, preview_place, preview_wanted;   /* PLAY on a place: its song (pattern) plays; on which page, which place; PLAY asked for one */
     uint32_t kept_chain_on, kept_shown_pattern, kept_shown_bar;   /* (meanwhile: as they were with the song) */
@@ -164,6 +167,11 @@ static struct {
     .places_with_song = 1u << PLACE_DEMO | 1u << PLACE_DEMO2 | 1u << PLACE_DEMO3 | 1u << PLACE_NEW, .place_to_save = PLACE_COUNT,
     .page_drawn = ~0u,
 };
+
+static int suggestion_plays(void)               /* a groove or a progression plays, not the song's own yet */
+{
+    return ui.groove_shown != GROOVE_OWN || ui.progression_shown != PROGRESSION_OWN;
+}
 
 /* what one pass of the main loop finds and works out: the panel's moves, the page, what the knobs and keys show */
 typedef struct {
@@ -351,6 +359,17 @@ static void groove_end(pass_t *pass)
         groove_drop(&song.patterns[ui.groove_pattern]);
 }
 
+/* a progression that plays in place of the pad's chords goes, the chords are back (another page, PRESETS, EDIT off) */
+static void progression_end(pass_t *pass)
+{
+    if (ui.progression_shown != PROGRESSION_OWN && (pass->page != MELODIC_FIRST_PAGE + MELODIC_PAD || pass->sound_page || pass->mix_page || pass->presets_detents || !ui.edit_on)) {
+        pad_put_back(&song.patterns[ui.progression_pattern], &ui.progression_kept);
+        ui.progression_shown = PROGRESSION_OWN;
+        ui.progression_asked = 0;
+        ui.roll_drawn = 0;
+    }
+}
+
 /* a preview goes on to another place, or starts (PLAY, above) */
 static void preview_follow(pass_t *pass)
 {
@@ -411,6 +430,13 @@ static void rec_button(pass_t *pass)
                 ui.groove_asked = 0;
                 pass->song_changed = 1;
             }
+        } else if (ui.progression_shown != PROGRESSION_OWN) {   /* PAD: the same for the progression that plays */
+            if (!pad_kept_empty(&ui.progression_kept) && !ui.progression_asked) ui.progression_asked = 1;
+            else {
+                ui.progression_shown = PROGRESSION_OWN;
+                ui.progression_asked = 0;
+                pass->song_changed = 1;
+            }
         } else if (pass->notes_page) ui.recording_on = !ui.recording_on;
         else if (pass->page == PAGE_GLOBAL && !pattern_empty(&song.patterns[ui.shown_pattern])) {
             uint32_t index;                     /* a copy goes to the first empty pattern, which is then the one on the screen */
@@ -423,7 +449,7 @@ static void rec_button(pass_t *pass)
                 }
         }
     }
-    if (ui.rec_waits && fm1_ms - ui.rec_ms >= HOLD_MS && ui.groove_shown == GROOVE_OWN) {
+    if (ui.rec_waits && fm1_ms - ui.rec_ms >= HOLD_MS && !suggestion_plays()) {
         ui.rec_waits = 0;                       /* held: JUICY empties the pattern, DRUMS the selected drum, a track itself; the bars stay */
         pattern_clear(&song.patterns[ui.shown_pattern], pass->page == PAGE_GLOBAL ? ALL_TRACKS : pass->page, ui.selected_drum);
         ui.roll_drawn = 0;
@@ -485,6 +511,39 @@ static void step_keys(pass_t *pass)
     }
 }
 
+/* GLO: the song as it was before the last change comes back; GLO again: the change is back (the two swap). A change is
+ * what the song went through in one go: changes less than UNDO_GAP_MS apart are one. Not while a preview, a groove or
+ * a progression plays (the song on the screen is not the song's own then) */
+#define UNDO_GAP_MS 1000u
+static song_t undo_song;                        /* the song before the last change (after GLO: the change) */
+static song_t undo_before;                      /* the song as the last change left it */
+
+static void undo_button(pass_t *pass)
+{
+    if (pass->song_changed && !suggestion_plays()) {
+        if (!ui.undo_ready || fm1_ms - ui.undo_change_ms > UNDO_GAP_MS) {   /* a new change: what was before it comes back */
+            memcpy(&undo_song, &undo_before, sizeof undo_song);
+            ui.undo_ready = 1;
+        }
+        ui.undo_change_ms = fm1_ms;
+        memcpy(&undo_before, (const void *)&song, sizeof undo_before);
+    } else if (pass->buttons_pressed & (1u << BTN_GLO) && ui.undo_ready && !ui.preview_on && !suggestion_plays()) {
+        volatile uint8_t *const now = (volatile uint8_t *)&song;   /* (byte by byte: what plays is always one song or the other's) */
+        uint8_t *const undone = (uint8_t *)&undo_song;
+        uint32_t index;
+        for (index = 0; index < sizeof undo_song; index++) {
+            const uint8_t byte = now[index];
+            now[index] = undone[index];
+            undone[index] = byte;
+        }
+        memcpy(&undo_before, (const void *)&song, sizeof undo_before);
+        ui.undo_change_ms = fm1_ms - UNDO_GAP_MS - 1u;   /* (the next change is a new one) */
+        ui.unsaved = 1;
+        ui.changed_ms = fm1_ms;
+        ui.page_drawn = ~0u;                    /* (everything on the screen may have changed) */
+    }
+}
+
 /* what waits to be saved goes to flash, only when stopped and silent (an erase stalls the sound) */
 static void save_when_quiet(void)
 {
@@ -504,7 +563,7 @@ static void save_when_quiet(void)
         ui.library_unsaved = 0;
         if (!slot_save(0, &library, sizeof library) && ui.library_note == LIBRARY_NOTE_SAVING) ui.library_note = LIBRARY_NOTE_STORED;
     }
-    if (ui.unsaved && !playing && sound_quiet() && fm1_ms - ui.changed_ms > 2000u && ui.groove_shown == GROOVE_OWN) {   /* an erase stalls the sound: only when stopped and silent (and not a groove that only plays) */
+    if (ui.unsaved && !playing && sound_quiet() && fm1_ms - ui.changed_ms > 2000u && !suggestion_plays()) {   /* an erase stalls the sound: only when stopped and silent (and not a groove or progression that only plays) */
         settings_save((const void *)&song, sizeof song);
         ui.unsaved = 0;
     }
@@ -534,6 +593,7 @@ static void app_main(void)                      /* what was kept comes back, the
     chain_on = song_has_chain();                /* a song with a chain starts with the chain on */
     draw_splash();
     ui.splash_start_ms = fm1_ms;
+    memcpy(&undo_before, (const void *)&song, sizeof undo_before);
 
     for (;;) {
         pass_t pass_now, *pass = &pass_now;
@@ -547,6 +607,7 @@ static void app_main(void)                      /* what was kept comes back, the
         choose_page(pass);
         preview_end(pass);
         groove_end(pass);
+        progression_end(pass);
         knob_pages(pass);
         preview_follow(pass);
         rec_button(pass);
@@ -555,6 +616,7 @@ static void app_main(void)                      /* what was kept comes back, the
         oct_buttons(pass);
         step_keys(pass);
         page_input(pass);
+        undo_button(pass);
         light_keys(pass);
         if (splash(pass)) continue;
         light_up(pass);

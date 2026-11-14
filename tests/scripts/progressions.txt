@@ -1,0 +1,40 @@
+# Chord progressions: on PAD with EDIT, KNOB4 (CHORDS) plays a progression in place of the pad's chords (nothing kept
+# yet, REC lit); REC keeps it (asked again over chords), OWN, another page, PRESETS or EDIT off: the chords back. The
+# test song has no key: the progressions are in A minor (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/progressions.txt
+# HOME, EDIT, SEQ: the chain off; PRESETS one on: pattern B (POWER chords: A2 A2 F2 G2); PLAY
+5 btn 8
+10 btn 6
+20 btn 11
+30 enc 6 1
+100 btn 12
+# SEL, OP4, EDIT: the pad track, the cursor on bar 1's chord
+290 btn 3
+300 keys 0x100
+350 keys 0
+360 btn 6
+900 shot
+# KNOB4 one on: EPIC plays (Am F C G): bar 1 A2 MIN; SELECT a bar on: bar 2 F3 MAJ
+1000 enc 5 1
+1300 shot
+1500 enc 0 16
+1800 shot
+# KNOB4 to the end: LOFI (Dm7 G7 Cmaj7 Am7), bar 2 G3 DOM7. All the way back: OWN, the POWER chords again
+2000 enc 5 10
+2300 shot
+3000 enc 5 -10
+3300 shot
+# KNOB4 four on: POP (C G Am F). REC: the pad held chords, so it asks; REC again: kept
+4000 enc 5 4
+4300 btn 13
+4500 shot
+4700 btn 13
+5000 shot
+# KNOB4 five on: MINIMAL (Am G, two bars). PRESETS on and back: the progression gone, POP as kept
+5500 enc 5 5
+5800 shot
+6000 enc 6 1
+6100 enc 6 -1
+6400 shot
+7000 btn 12
+7500 end

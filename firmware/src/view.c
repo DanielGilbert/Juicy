@@ -131,12 +131,13 @@ static void light_up(pass_t *pass)
                               : pass->page == PAGE_LIBRARY ? ui.places_with_pattern >> ui.selected_library_place & 1u : ui.edit_on != 0);
     fm1_led_key(BTN_SEL, ui.select_on != 0);
     fm1_led_key(BTN_EDIT, ui.edit_on != 0);
+    fm1_led_key_glow(BTN_GLO, ui.undo_ready && !ui.preview_on && !suggestion_plays());   /* (GLO brings something back) */
     fm1_led_key_glow(BTN_OCT_DOWN, ui.recording_on ? ui.keyboard_octaves[pass->melodic] > 0u : ui.shown_bar > 0u);   /* there is a bar (recording: an octave) that way */
     fm1_led_key_glow(BTN_OCT_UP, ui.recording_on ? ui.keyboard_octaves[pass->melodic] + 1u < KEYBOARD_OCTAVES
                                  : ui.shown_bar + 1u < pass->bar_total || (ui.edit_on && pass->page < TRACK_COUNT && pass->bar_total < BAR_COUNT));
     fm1_led_key(BTN_OCT_DOWN, ui.recording_on && ui.keyboard_octaves[pass->melodic] < 1u);   /* recording: the keys are an octave that way */
     fm1_led_key(BTN_OCT_UP, ui.recording_on && ui.keyboard_octaves[pass->melodic] > 1u);
-    fm1_led_key(BTN_REC, ui.recording_on || ui.groove_shown != GROOVE_OWN);   /* (a groove that plays: REC keeps it) */
+    fm1_led_key(BTN_REC, ui.recording_on || suggestion_plays());   /* (a groove or progression that plays: REC keeps it) */
     fm1_led_key_glow(BTN_REC, pass->page == PAGE_SONGS ? ui.selected_place >= PLACE_FIRST_KEPT : pass->page == PAGE_LIBRARY || ((pass->page == PAGE_GLOBAL || (pass->page < TRACK_COUNT && !pass->mix_page)) && ui.edit_on));
 }
 
@@ -254,7 +255,7 @@ typedef struct {                                /* what a knob's place shows on 
 static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
 {
     static const char *const MELODIC_LABELS[KNOB_COUNT] = {"NOTE", "CUTOFF", "DECAY", "LENGTH"};
-    static const char *const PAD_LABELS[KNOB_COUNT] = {"NOTE", "CUTOFF", "CHORD", ""};
+    static const char *const PAD_LABELS[KNOB_COUNT] = {"NOTE", "CUTOFF", "CHORD", "CHORDS"};
     static const char *const ARP_LABELS[KNOB_COUNT] = {"MODE", "CUTOFF", "DECAY", "LENGTH"};
     static const char *const MIX_LABELS[KNOB_COUNT] = {"LEVEL", "PAN", "REVERB", "ECHO"};
     static const char *const GLOBAL_LABELS[KNOB_COUNT] = {"TEMPO", "REVERB", "SWING", "KEY"};
@@ -315,7 +316,7 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
         if (knob == 0u) view->text = GROOVES[ui.groove_shown].name;
         else if (knob == 3u && ui.groove_asked) view->text = "AGAIN";
         else format_number(view->number, view->value);
-    } else {                                    /* a track's notes: NOTE (ARP: MODE), CUTOFF, DECAY (PAD: CHORD), LENGTH */
+    } else {                                    /* a track's notes: NOTE (ARP: MODE), CUTOFF, DECAY (PAD: CHORD), LENGTH (PAD: CHORDS) */
         const uint32_t values[KNOB_COUNT] = {arp_shown ? pass->pattern->arp_mode : pass->shown_note, song.cutoff[melodic],
                                              pad_shown ? pass->shown_chord : song.decay[melodic], pass->shown_length};
         view->label = pad_shown ? PAD_LABELS[knob] : arp_shown ? ARP_LABELS[knob] : MELODIC_LABELS[knob];
@@ -326,6 +327,11 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
         } else if (knob == 0u) format_note(view->number, view->value);
         else if (pad_shown && knob == 2u) {
             view->text = CHORD_NAMES[view->value == PAD_CHORD_AUTO && song_key() == KEY_OFF ? PAD_CHORD_MINOR : view->value];   /* (AUTO without a key: MIN) */
+            view->big = 0;
+        } else if (pad_shown && knob == 3u) {   /* CHORDS: the progression (a word), or REC's question */
+            view->label = ui.progression_asked ? "REC" : "CHORDS";
+            view->value = ui.progression_asked ? 1000u : ui.progression_shown;
+            view->text = ui.progression_asked ? "AGAIN" : PROGRESSIONS[ui.progression_shown].name;
             view->big = 0;
         } else if (knob == 3u && view->value < LENGTH_WHOLE_FIRST) {   /* LENGTH: 10 % .. 90 % of a step, then whole steps */
             view->number[0] = (char)('0' + view->value);
