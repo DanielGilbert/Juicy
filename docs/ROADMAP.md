@@ -152,8 +152,8 @@ playing bar; with the chain on, only the pattern on the screen records while it 
 
 ## Room and rules
 
-- **Storage:** a song is 3984 of 4084 B (about 100 B free, plus the one padding byte step 1 uses); a pattern is
-  488 B; the library holds 16 patterns in a 16 KB slot. Tables (grooves, progressions) cost flash, not storage.
+- **Storage:** a song is 4032 of 4084 B (about 50 B free; each pattern's mix took 48 B on 2026-11-15); a pattern is
+  494 B; the library holds 16 patterns in a 16 KB slot. Tables (grooves, progressions) cost flash, not storage.
 - **Audio:** the audio interrupt peaks at 24 % of its 5.8 ms (measured 2026-11-13); [RULES.md](RULES.md) asks for
   under 50 %.
 - **Free controls:** ALGORITHM on JUICY, DRUMS, PAD and LEAD (step 5 takes it on BASS and ARP), the ENV, LFO and ARP buttons (step 4 takes GLO), JUICY's KNOB4 (step 1

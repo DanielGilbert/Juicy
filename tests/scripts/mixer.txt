@@ -1,0 +1,33 @@
+# The pattern's mixer: FX on JUICY goes round NAMES, MIXER and JUICY. MIXER is the pattern on the screen's own mix,
+# a row per track: with EDIT the lower keys 1 .. 5 mute or unmute a track in this pattern only, SELECT picks a track,
+# KNOB1 its level in this pattern (on top of the track's LEVEL) (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/mixer.txt
+# One bar at 130 BPM is 1846 ms: pattern B (drums one bar, bass two, the rest four) plays from 1000.
+# EDIT, SEQ: the chain off. PRESETS one on: pattern B. FX twice: its MIXER, every track full
+100 btn 6
+150 btn 11
+200 enc 6 1
+300 btn 2
+400 btn 2
+600 shot
+# PLAY: pattern B round and round
+1000 btn 12
+# keys 2 .. 5 (keys 2, 4, 6, 7): BASS, ARP, PAD and LEAD muted in B (LEAD selected); the drums alone from the next
+# step on (the tails ring out)
+3000 keys 0xD4
+3050 keys 0
+3200 shot
+# SELECT four back: DRUMS. KNOB1 all the way down: silent after a short glide (12 ms)
+5900 enc 0 -4
+6000 enc 2 -100
+6200 shot
+# KNOB1 50 on: the drums at half their level
+9000 enc 2 50
+12000 btn 12
+# PRESETS one back: pattern A's mixer, as it was (every track full, nothing muted)
+12500 enc 6 -1
+12700 shot
+# FX: JUICY again
+12800 btn 2
+13000 shot
+13100 end

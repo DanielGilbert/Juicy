@@ -6,7 +6,7 @@
  * synth.c (for SYNTH_CUTOFF, SYNTH_DAMPING) come first. */
 #define PAD_NOTES_MAX 4u
 enum { PAD_CHORD_MINOR, PAD_CHORD_MAJOR, PAD_CHORD_MINOR7, PAD_CHORD_MAJOR7, PAD_CHORD_DOMINANT7, PAD_CHORD_SUS2,
-       PAD_CHORD_SUS4, PAD_CHORD_DIMINISHED, PAD_CHORD_POWER, PAD_CHORD_ROOT, PAD_CHORD_COUNT };
+       PAD_CHORD_SUS4, PAD_CHORD_DIMINISHED, PAD_CHORD_POWER, PAD_CHORD_ROOT, PAD_CHORD_MINOR_ADD9, PAD_CHORD_MAJOR_ADD9, PAD_CHORD_COUNT };
 static const struct {
     uint8_t note_count;
     uint8_t intervals[PAD_NOTES_MAX];           /* semitones above the root, the root first */
@@ -16,6 +16,7 @@ static const struct {
     {3, {0, 2, 7}}, {3, {0, 5, 7}},             /* sus2, sus4: the third is a second or a fourth */
     {3, {0, 3, 6}},                             /* diminished */
     {2, {0, 7}}, {1, {0}},                      /* power chord (root and fifth), the root alone */
+    {4, {0, 2, 3, 7}}, {4, {0, 2, 4, 7}},       /* minor and major with an added ninth, close: the ninth between the root and the third */
 };
 /* the notes of a chord about as loud together as three: Q8, by how many there are (the square root of 3 / count) */
 static const int32_t PAD_NOTES_GAIN[PAD_NOTES_MAX + 1u] = {0, 443, 314, 256, 222};

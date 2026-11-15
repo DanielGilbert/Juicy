@@ -1,0 +1,43 @@
+# Copying a bar: with EDIT on a track's page, OCT+ past the track's last bar gives it one more; tapped, the new bar
+# is empty, held (600 ms) it is a copy of the last one, its accents too (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/copybar.txt
+# One bar at 130 BPM is 1846 ms.
+# PRESETS five on: pattern F, empty, one bar on every track. EDIT, SEQ: the chain off, F alone
+300 enc 6 5
+400 btn 6
+450 btn 11
+# HOME: the drums. Kicks on steps 1, 5, 9, 13 (lower keys 0, 7, 14, 21), the one on step 1 held: accented
+700 btn 8
+800 keys 0x1
+1500 keys 0
+1600 keys 0x80
+1650 keys 0
+1700 keys 0x4000
+1750 keys 0
+1800 keys 0x200000
+1850 keys 0
+1900 shot
+# OCT+ held: two bars, the second (on the screen) a copy of the first, the accent too
+2000 btndown 1
+2800 btnup 1
+2900 shot
+# OCT+ tapped: three bars, the third empty
+3000 btn 1
+3200 shot
+# SEL, OP2, EDIT: the bass. A1 (the selected note) on steps 1 and 3 (keys 0, 4). OCT+ held: its second bar the same
+3300 btn 3
+3320 keys 0x8
+3340 keys 0
+3360 btn 6
+3500 keys 0x1
+3550 keys 0
+3600 keys 0x10
+3650 keys 0
+3700 btndown 1
+4500 btnup 1
+4700 shot
+# HOME: the pattern lasts three bars (the drums'). PLAY: kicks in bars 1 and 2, not 3; the bass in bars 1 and 2, again in 3 (its bars go round)
+4800 btn 8
+5000 btn 12
+10800 btn 12
+11000 end

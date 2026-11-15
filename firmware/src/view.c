@@ -29,6 +29,11 @@ static void light_keys(pass_t *pass)
     } else if (pass->page == PAGE_NAMING) {     /* the lower keys are the names' places, the song's then the pattern's: the cursor's lit */
         for (step = 0; step < 2u * NAME_LENGTH; step++) pass->keys_glowing |= 1u << STEP_KEYS[step];
         pass->keys_lit = 1u << STEP_KEYS[ui.naming_cursor];
+    } else if (pass->page == PAGE_MIXER) {      /* the lower keys 1 .. 5 are the tracks (EDIT: they mute), lit where the track plays in the pattern */
+        for (track = 0; track < TRACK_COUNT; track++) {
+            pass->keys_glowing |= 1u << STEP_KEYS[track];
+            if (!(pass->pattern->mixer_mutes >> track & 1u)) pass->keys_lit |= 1u << STEP_KEYS[track];
+        }
     } else if (pass->page == PAGE_SONGS) {      /* no key does anything */
     } else if (pass->page == PAGE_LIBRARY) {    /* the lower keys are the places, lit where there is a pattern */
         for (step = 0; step < LIBRARY_PLACES; step++) {
@@ -56,7 +61,8 @@ static void light_keys(pass_t *pass)
         pass->keys_lit = 1u << STEP_KEYS[ui.selected_drum];
     } else if (pass->page != PAGE_GLOBAL) {     /* the keys with a note of the track, the shown note's key lit. With a key: */
         const uint32_t first_note = keyboard_first_note(pass->melodic, ui.keyboard_octaves[pass->melodic]), song_key_now = song_key();
-        const uint32_t chord_now = song_key_now != KEY_OFF && pass->melodic != MELODIC_PAD ? chord_notes(chord_at_hand(pass)) : 0u;
+        const int tones = pass->melodic == MELODIC_ARP && pass->pattern->arp_mode == ARP_MODE_TONES;   /* (ARP in TONES: the chord's keys give tones, with a key or not) */
+        const uint32_t chord_now = (song_key_now != KEY_OFF || tones) && pass->melodic != MELODIC_PAD ? chord_notes(chord_at_hand(pass)) : 0u;
         for (key = 0; key < KEY_COUNT; key++) { /* the chord's notes lit (not the pad's: its keys are roots), the key's brighter */
             const uint32_t note = first_note + key;
             if (note < MELODIC[pass->melodic].note_lowest || note > MELODIC[pass->melodic].note_highest) continue;
@@ -122,10 +128,10 @@ static void light_up(pass_t *pass)
         fm1_led_key(KEY_LED(key), pass->keys_lit >> key & 1u);
     }
     fm1_led_key(BTN_PLAY, playing && pass->step_now % 4u == 0u);   /* playing: lit on each beat's first step, the beat */
-    fm1_led_key(BTN_HOME, pass->page == PAGE_GLOBAL || pass->page == PAGE_NAMING);
+    fm1_led_key(BTN_HOME, pass->page == PAGE_GLOBAL || pass->page == PAGE_NAMING || pass->page == PAGE_MIXER);
     fm1_led_key(BTN_SAVE, pass->page == PAGE_SONGS || pass->page == PAGE_LIBRARY);
     fm1_led_key_glow(BTN_FX, pass->page < TRACK_COUNT || pass->page == PAGE_GLOBAL);   /* a track's (JUICY's) other pages are there */
-    fm1_led_key(BTN_FX, pass->sound_page || pass->mix_page || pass->page == PAGE_NAMING);
+    fm1_led_key(BTN_FX, pass->sound_page || pass->mix_page || pass->page == PAGE_NAMING || pass->page == PAGE_MIXER);
     fm1_led_key(BTN_SEQ, chain_on != 0);
     fm1_led_key_glow(BTN_SEQ, pass->page == PAGE_SONGS ? ui.places_with_song >> ui.selected_place & 1u
                               : pass->page == PAGE_LIBRARY ? ui.places_with_pattern >> ui.selected_library_place & 1u : ui.edit_on != 0);
@@ -146,7 +152,7 @@ static void body_clear(void)                    /* the page's body black, each p
     uint32_t row;
     lcd_fill(0, BODY_TOP, 240, BODY_HEIGHT, C_BLACK);
     for (row = 0; row < DRUM_COUNT; row++) ui.mix_drawn[row] = 0;
-    ui.roll_drawn = ui.roll_marker_drawn = ui.chain_drawn = ui.songs_drawn = ui.library_drawn = ui.sound_drawn = ui.naming_drawn = 0;
+    ui.roll_drawn = ui.roll_marker_drawn = ui.chain_drawn = ui.songs_drawn = ui.library_drawn = ui.sound_drawn = ui.naming_drawn = ui.mixer_hint_drawn = 0;
     for (row = 0; row < DRUMS_PER_PAGE; row++) ui.drum_row_drawn[row] = 0;
 }
 
@@ -179,6 +185,7 @@ static uint32_t page_hints(const pass_t *pass, const char *hints[ROLL_HINTS])
 /* the screen: only what changed */
 static void draw_screen(pass_t *pass)
 {
+    const uint32_t muted = muted_tracks | pass->pattern->mixer_mutes;   /* (everywhere, or in the pattern on the screen) */
     uint32_t state;
     uint32_t knob;
     const char *hints[ROLL_HINTS];
@@ -190,10 +197,10 @@ static void draw_screen(pass_t *pass)
         ui.drum_pages_drawn = 0;
         for (knob = 0; knob < KNOB_COUNT; knob++) ui.knob_drawn[knob] = 0;
     }
-    state = 1u + (ui.shown_bar | pass->bar_total << 4 | pass->marked_bar << 8 | ui.shown_pattern << 12 | ui.edit_on << 16 | muted_tracks << 17);
+    state = 1u + (ui.shown_bar | pass->bar_total << 4 | pass->marked_bar << 8 | ui.shown_pattern << 12 | ui.edit_on << 16 | muted << 17);
     if (state != ui.header_drawn) {
         ui.header_drawn = state;
-        draw_header(pass->page, ui.shown_pattern, pass->bar_total, ui.shown_bar, pass->marked_bar, ui.edit_on != 0, pass->page < TRACK_COUNT && muted_tracks >> pass->page & 1u);
+        draw_header(pass->page, ui.shown_pattern, pass->bar_total, ui.shown_bar, pass->marked_bar, ui.edit_on != 0, pass->page < TRACK_COUNT && muted >> pass->page & 1u);
         ui.chord_name_drawn = 0;                /* (the header covered it) */
     }
     if (pass->notes_page && (pass->melodic == MELODIC_BASS || pass->melodic == MELODIC_LEAD) && song_key() != KEY_OFF) {
@@ -251,6 +258,21 @@ static void draw_screen(pass_t *pass)
             ui.naming_drawn = state;
             draw_naming(pass->pattern->name, ui.shown_pattern, ui.naming_cursor);
         }
+    } else if (pass->page == PAGE_MIXER) {      /* a row per track: its level in the pattern, dark where muted there, the selected orange */
+        uint32_t track;
+        for (track = 0; track < TRACK_COUNT; track++) {
+            const uint32_t level = pass->pattern->mixer_levels[track], pattern_muted = pass->pattern->mixer_mutes >> track & 1u;
+            state = 1u + (level | (uint32_t)(track == ui.mixer_track) << 8 | pattern_muted << 9);
+            if (state != ui.mix_drawn[track]) {
+                ui.mix_drawn[track] = state;
+                draw_mix_row(track, PAGE_NAMES[track], level, 0, track == ui.mixer_track, pattern_muted != 0u);
+            }
+        }
+        state = 1u + (ui.shown_pattern | ui.edit_on << 4);
+        if (state != ui.mixer_hint_drawn) {
+            ui.mixer_hint_drawn = state;
+            draw_mixer_hint(ui.shown_pattern, ui.edit_on != 0);
+        }
     } else if (pass->page == PAGE_SONGS) {
         state = 1u + (ui.selected_place | ui.songs_note << 4 | ui.places_with_song << 8 | ui.preview_on << 20 | ui.new_style << 21);
         if (state != ui.songs_drawn) {
@@ -275,7 +297,7 @@ static void draw_screen(pass_t *pass)
             state = 1u + (value | (uint32_t)selected << 8);
             if (state != ui.mix_drawn[row]) {
                 ui.mix_drawn[row] = state;
-                draw_mix_row(row, pass->page == PAGE_DRUMS ? DRUM_NAMES[row] : MIX_NAMES[row], value, pass->page != PAGE_DRUMS && row == 1u, selected);
+                draw_mix_row(row, pass->page == PAGE_DRUMS ? DRUM_NAMES[row] : MIX_NAMES[row], value, pass->page != PAGE_DRUMS && row == 1u, selected, 0);
             }
         }
     } else if (pass->sound_page) {
@@ -314,6 +336,7 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
     static const char *const SONGS_LABELS[KNOB_COUNT] = {"SONG", "", "", ""};
     static const char *const LIBRARY_LABELS[KNOB_COUNT] = {"PLACE", "", "", ""};
     static const char *const NAMING_LABELS[KNOB_COUNT] = {"LETTER", "", "", ""};
+    static const char *const MIXER_LABELS[KNOB_COUNT] = {"LEVEL", "", "", ""};
     static const char *const SYNTH_SOUND_LABELS[KNOB_COUNT] = {"WAVE", "RESO", "ATTACK", "ENV"};
     static const char *const PAD_SOUND_LABELS[KNOB_COUNT] = {"SPREAD", "RESO", "ATTACK", "RELEASE"};
     const uint32_t page = pass->page, melodic = pass->melodic;
@@ -354,6 +377,10 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
         view->number[1] = 0;
         if (!view->value) view->text = "SPACE";
         view->big = view->value != 0u;
+    } else if (page == PAGE_MIXER) {            /* the selected track's level in the pattern (its row is orange: that says which) */
+        view->label = MIXER_LABELS[knob];
+        view->value = knob ? 0u : pass->pattern->mixer_levels[ui.mixer_track];
+        format_number(view->number, view->value);
     } else if (page == PAGE_GLOBAL) {           /* TEMPO (EXT: the clock's), REVERB, SWING in % (50 straight), KEY */
         const uint32_t values[KNOB_COUNT] = {ui.external_clock ? ui.external_bpm : song.tempo, song.reverb, 50u + song.patterns[ui.shown_pattern].swing, song_key()};
         view->label = knob == 0u && ui.external_clock ? "EXT" : GLOBAL_LABELS[knob];
@@ -374,7 +401,11 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
                                              pad_shown ? pass->shown_chord : song.decay[melodic], pass->shown_length};
         view->label = pad_shown ? PAD_LABELS[knob] : arp_shown ? ARP_LABELS[knob] : MELODIC_LABELS[knob];
         view->value = values[knob];
-        if (arp_shown && knob == 0u) {
+        if (arp_shown && knob == 0u && pass->pattern->arp_mode == ARP_MODE_TONES && pass->shown_tone) {   /* TONES, the cursor on a hit: its TONE */
+            view->label = "TONE";
+            view->value = 0x100u + pass->shown_tone;
+            format_number(view->number, pass->shown_tone);
+        } else if (arp_shown && knob == 0u) {
             view->text = ARP_MODE_NAMES[view->value];
             view->big = 0;
         } else if (knob == 0u) format_note(view->number, view->value);

@@ -79,9 +79,11 @@ static void library_load(void)                  /* nothing kept, or something br
         if (!pattern_valid(&library.patterns[place])) valid = 0;
     if (valid) return;
     memset(&library, 0, sizeof library);
-    for (place = 0; place < LIBRARY_PLACES; place++)
+    for (place = 0; place < LIBRARY_PLACES; place++) {
         for (track = 0; track < sizeof library.patterns[place].bar_totals; track++)
             library.patterns[place].bar_totals[track] = 1;
+        mixer_levels_full(&library.patterns[place]);
+    }
 }
 
 #include "sequencer.c"
@@ -112,12 +114,13 @@ static uint32_t keyboard_first_note(uint32_t melodic, uint32_t octave)   /* the 
 /* the main loop's state, from one pass to the next (the panel, the pages, what waits to be saved, what is drawn) */
 static struct {
     uint32_t previous_keys;                     /* the keys down in the pass before */
-    uint32_t shown_track, global_shown, songs_shown, library_shown, names_shown;   /* which page: a track's, JUICY, SAVE's two, JUICY's NAMES */
+    uint32_t shown_track, global_shown, songs_shown, library_shown, names_shown, mixer_shown;   /* which page: a track's, JUICY, SAVE's two, JUICY's NAMES and MIXER */
     uint32_t fx_page;                           /* FX: which page of a track (DRUMS has no sound page) */
     uint32_t shown_pattern, shown_bar;          /* the pattern and the bar on the screen */
     uint32_t selected_drum;                     /* DRUMS: the drum the keys edit */
     uint32_t selected_notes[MELODIC_COUNT];     /* the next note a track places */
     uint32_t selected_chord;                    /* the chord KNOB3 shows on the pad's page: PAD_CHORD_* */
+    uint32_t arp_tone;                          /* ARP: the tone the next hit gets (in MODE TONES: KNOB1 on a hit, or a key of the chord) */
     uint32_t selected_lengths[MELODIC_COUNT];   /* KNOB4: how long a placed note is (not the pad's) */
     uint32_t roll_lowest_notes[MELODIC_COUNT];  /* the lowest note a track's roll shows */
     uint32_t cursor_steps[MELODIC_COUNT];       /* SELECT: the cursor's step in the bar on the screen */
@@ -133,6 +136,7 @@ static struct {
     uint32_t edit_on;                           /* EDIT: the lower keys are the steps. Neither: the keys play */
     uint32_t held_key;                          /* the key that played the last note by hand */
     uint32_t oct_down_waits, oct_down_ms;       /* OCT- is down and has not done anything yet; since when */
+    uint32_t oct_up_waits, oct_up_ms;           /* the same for OCT+ */
     uint32_t rec_waits, rec_ms;                 /* the same for REC (copy or clear) */
     uint32_t step_key_waiting, step_key_ms;     /* EDIT: a step key is down and has not done anything yet (DRUMS, a track); since when */
     uint32_t selected_library_place, library_note, places_with_pattern;   /* bit p: library place p holds a pattern */
@@ -151,6 +155,7 @@ static struct {
     uint32_t places_with_song;                  /* bit p: place p holds a song */
     uint8_t place_names[PLACES_KEPT][NAME_LENGTH];   /* the kept songs' names (the songs' page shows them) */
     uint32_t naming_cursor;                     /* the NAMES page's cursor: 0 .. 7 the song's name, 8 .. 15 the pattern's */
+    uint32_t mixer_track;                       /* the MIXER page's selected track (a track's page number) */
     uint32_t groove_shown, groove_asked, groove_pattern;   /* DRUMS: the groove that plays in place of the drums (GROOVE_OWN: none), REC asked, in which pattern */
     drums_kept_t groove_kept;                   /* (meanwhile: the drums as they were) */
     uint32_t suggestion_shown, suggestion_melodic;   /* PAD, BASS, ARP: the suggestion that plays in place of that track's notes (SUGGESTION_OWN: none) */
@@ -165,13 +170,13 @@ static struct {
     uint32_t kept_chain_on, kept_shown_pattern, kept_shown_bar;   /* (meanwhile: as they were with the song) */
     uint32_t unsaved, changed_ms;               /* the song changed (since when): it goes to flash once nothing sounds */
     /* what is on the screen (+ 1, so 0 means "draw it"): the page, its header, each part of its body, the knobs */
-    uint32_t page_drawn, header_drawn, chord_name_drawn, chain_drawn, songs_drawn, library_drawn, naming_drawn, sound_drawn;
+    uint32_t page_drawn, header_drawn, chord_name_drawn, chain_drawn, songs_drawn, library_drawn, naming_drawn, mixer_hint_drawn, sound_drawn;
     uint32_t drum_row_drawn[DRUMS_PER_PAGE], drum_accents_drawn, drum_pages_drawn, mix_drawn[DRUM_COUNT];
     uint32_t roll_drawn, roll_marker_drawn, knob_drawn[KNOB_COUNT], overlay_drawn, hints_drawn;
 } ui = {
     .shown_track = PAGE_DRUMS, .global_shown = 1, .fx_page = FX_PAGE_NOTES, .selected_drum = DRUM_KICK,
     .selected_notes = {33, 60, 57, 69}, .roll_lowest_notes = {28, 56, 53, 65},   /* A1, C4, A3, A4 */
-    .selected_chord = PAD_CHORD_AUTO,
+    .selected_chord = PAD_CHORD_AUTO, .arp_tone = ARP_HIT,
     .selected_lengths = {LENGTH_WHOLE_FIRST, LENGTH_WHOLE_FIRST, LENGTH_WHOLE_FIRST, LENGTH_WHOLE_FIRST},
     .keyboard_octaves = {1, 1, 1, 1}, .live_key = KEY_COUNT, .step_key_waiting = NO_STEP, .library_note = LIBRARY_NOTE_NONE, .splash_shown = 1,
     .clock_start = CLOCK_START_NONE, .sound_note = SOUND_NOTE_NONE, .selected_place = PLACE_FIRST_KEPT, .songs_note = SONGS_NOTE_NONE,
@@ -206,6 +211,7 @@ typedef struct {
     uint32_t melodic;                           /* a track's page: its melodic track */
     uint32_t tapped_steps, held_step;           /* EDIT: the step keys let go after a tap (bit s), the one held long enough */
     uint32_t shown_note, shown_chord, shown_length;   /* a track's notes: what the knobs show (the cursor's note, or the next one) */
+    uint32_t shown_tone;                        /* ARP, EDIT, the cursor on a hit: its tone (KNOB1 in MODE TONES), 0: none */
     uint32_t step_leds;                         /* bit s: the lower key of step s is lit (EDIT) */
     uint32_t step_now, marked_step, marked_bar, marked_slot;   /* what plays: its step, and where the screen marks it */
     uint32_t keys_glowing, keys_glowing_bright, keys_lit;   /* bit k: key k's light */
@@ -306,9 +312,9 @@ static void choose_page(pass_t *pass)
         ui.library_shown = ui.songs_shown;
         ui.songs_shown = !ui.songs_shown && !ui.library_shown;
     }
-    if (pass->buttons_pressed & (1u << BTN_HOME)) {   /* (from the songs', the library's or the NAMES page: home) */
-        ui.global_shown = ui.songs_shown || ui.library_shown || ui.names_shown || !ui.global_shown;
-        ui.songs_shown = ui.library_shown = ui.names_shown = 0;
+    if (pass->buttons_pressed & (1u << BTN_HOME)) {   /* (from the songs', the library's, the NAMES or the MIXER page: home) */
+        ui.global_shown = ui.songs_shown || ui.library_shown || ui.names_shown || ui.mixer_shown || !ui.global_shown;
+        ui.songs_shown = ui.library_shown = ui.names_shown = ui.mixer_shown = 0;
     }
     if (pass->buttons_pressed & (1u << BTN_SEL)) {   /* SEL and EDIT: one at a time, the one pressed takes over */
         ui.select_on = !ui.select_on;
@@ -327,9 +333,14 @@ static void choose_page(pass_t *pass)
             ui.global_shown = ui.songs_shown = ui.library_shown = 0;
         }
     pass->page = ui.songs_shown ? PAGE_SONGS : ui.library_shown ? PAGE_LIBRARY : ui.global_shown ? PAGE_GLOBAL : ui.shown_track;
-    if (pass->buttons_pressed & (1u << BTN_FX) && pass->page == PAGE_GLOBAL) ui.names_shown = !ui.names_shown;   /* JUICY's other page: the names */
-    if (pass->page != PAGE_GLOBAL) ui.names_shown = 0;
+    if (pass->buttons_pressed & (1u << BTN_FX) && pass->page == PAGE_GLOBAL) {   /* JUICY's other pages, round: the names, the pattern's mix */
+        const uint32_t names_were_shown = ui.names_shown;
+        ui.names_shown = !ui.names_shown && !ui.mixer_shown;
+        ui.mixer_shown = names_were_shown;
+    }
+    if (pass->page != PAGE_GLOBAL) ui.names_shown = ui.mixer_shown = 0;
     if (ui.names_shown) pass->page = PAGE_NAMING;
+    if (ui.mixer_shown) pass->page = PAGE_MIXER;
     if (pass->buttons_pressed & (1u << BTN_FX) && pass->page < TRACK_COUNT)   /* the notes, the sound (not DRUMS), the mix, round */
         ui.fx_page = ui.fx_page == FX_PAGE_MIX ? FX_PAGE_NOTES : pass->page == PAGE_DRUMS ? FX_PAGE_MIX : ui.fx_page + 1u;
     pass->sound_page = ui.fx_page == FX_PAGE_SOUND && pass->page > PAGE_DRUMS && pass->page < TRACK_COUNT;
@@ -480,7 +491,7 @@ static void rec_button(pass_t *pass)
     }
 }
 
-/* OCT- / OCT+: the bar on the screen (EDIT: one more, or one taken out); recording: the keys' octave */
+/* OCT- / OCT+: the bar on the screen (EDIT: one more, empty or a copy, or one taken out); recording: the keys' octave */
 static void oct_buttons(pass_t *pass)
 {
     if (ui.recording_on) {                      /* recording: OCT- / OCT+ move the keys (the cursor goes through the bars) */
@@ -512,12 +523,24 @@ static void oct_buttons(pass_t *pass)
         ui.roll_drawn = 0;
         pass->song_changed = 1;
     }
-    if (!ui.recording_on && pass->buttons_pressed & (1u << BTN_OCT_UP)) {
-        if (ui.edit_on && pass->page < TRACK_COUNT && ui.shown_bar + 1u == pass->pattern->bar_totals[pass->page] && pass->pattern->bar_totals[pass->page] < BAR_COUNT) {
-            pass->pattern->bar_totals[pass->page]++;   /* EDIT on a track's page: past its last bar is a new one */
-            pass->song_changed = 1;
+    if (!ui.recording_on && pass->buttons_pressed & (1u << BTN_OCT_UP)) {   /* OCT+ moves when it is let go: held, the new bar is a copy */
+        ui.oct_up_waits = 1;
+        ui.oct_up_ms = fm1_ms;
+    }
+    if (ui.oct_up_waits) {                      /* EDIT on a track's page: past its last bar is a new one, empty (held: the last one's copy) */
+        const int bar_added = ui.edit_on && pass->page < TRACK_COUNT && ui.shown_bar + 1u == pass->pattern->bar_totals[pass->page]
+                              && pass->pattern->bar_totals[pass->page] < BAR_COUNT;
+        const int held = bar_added && fm1_ms - ui.oct_up_ms >= HOLD_MS;
+        if (held || pass->buttons_released & (1u << BTN_OCT_UP)) {
+            ui.oct_up_waits = 0;
+            if (bar_added) {
+                pass->pattern->bar_totals[pass->page]++;
+                if (held) pattern_copy_bar(pass->pattern, pass->page, ui.shown_bar, ui.shown_bar + 1u);
+                ui.roll_drawn = 0;
+                pass->song_changed = 1;
+            }
+            ui.shown_bar++;
         }
-        ui.shown_bar++;
     }
     pass->bar_total = pass->page < TRACK_COUNT ? pass->pattern->bar_totals[pass->page] : pattern_bars(pass->pattern);
     if (ui.shown_bar >= pass->bar_total) ui.shown_bar = pass->bar_total - 1u;   /* the screen never shows a bar that does not play */

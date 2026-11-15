@@ -1,0 +1,80 @@
+# ARP's MODE TONES and the add9 chords: each hit plays its own tone of the pad's chord (1 .. 8, the chord's notes from
+# its root up), so one bar of hits follows every chord. With EDIT and the cursor on a hit KNOB1 is its TONE; a key of
+# the chord (lit) gives the next hit its tone, and records it (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/tones.txt
+# Pattern B of the test song: the pad's chords A POWER, A POWER, F POWER, G POWER, a bar each (130 BPM: 1846 ms).
+# EDIT, SEQ: the chain off. PRESETS one on: pattern B
+10 btn 6
+20 btn 11
+30 enc 6 1
+# SEL: the drums, the bass, the pad and the lead muted (ARP alone, the pad still leads it). OP4, EDIT: the pad
+100 btn 3
+150 keys 0x50A000
+200 keys 0
+250 keys 0x100
+300 keys 0
+350 btn 6
+# KNOB3 two on: the first chord is A MADD9 (A B C E)
+500 enc 4 2
+700 shot
+# SEL, OP3, EDIT: ARP. REC held: its hits gone. OCT- held three times: one bar left
+800 btn 3
+850 keys 0x20
+900 keys 0
+950 btn 6
+1000 btndown 13
+1700 btnup 13
+1800 btndown 0
+2500 btnup 0
+2600 btndown 0
+3300 btnup 0
+3400 btndown 0
+4100 btnup 0
+# KNOB1 ten on: MODE TONES (UP 3 before)
+4200 enc 2 10
+4300 shot
+# the riff: tones 1 4 2 3 1 1 4 2 3 on steps 1 3 5 7 8 10 11 13 15. A step tapped gets the last tone, KNOB1 turns it
+4400 keys 0x1
+4450 keys 0
+4600 keys 0x10
+4650 keys 0
+4700 enc 2 3
+4800 keys 0x80
+4850 keys 0
+4900 enc 2 -2
+5000 keys 0x800
+5050 keys 0
+5100 enc 2 1
+5200 keys 0x1000
+5250 keys 0
+5300 enc 2 -2
+5400 keys 0x10000
+5450 keys 0
+5500 keys 0x40000
+5550 keys 0
+5600 enc 2 3
+5700 keys 0x200000
+5750 keys 0
+5800 enc 2 -2
+5900 keys 0x1000000
+5950 keys 0
+6000 enc 2 1
+6200 shot
+# FX twice: ARP's mix page, KNOB3 and KNOB4 all the way down: no reverb, no echo (each hit's note clear to measure). FX: its notes again
+6250 btn 2
+6300 btn 2
+6350 enc 4 -100
+6400 enc 5 -100
+6450 btn 2
+# PLAY: the riff over A MADD9 (A3 E4 B3 C4 A3 A3 E4 B3 C4), A POWER (A3 E5 E4 A4 ...), F POWER (F3 C5 C4 F4 ...),
+# G POWER (G3 D5 D4 G4 ...)
+6500 btn 12
+13985 btn 12
+# the cursor on step 16, REC: the key E4 (key 11, a note of A MADD9) puts tone 4 there. REC again: no more recording
+14200 enc 0 1
+14300 btn 13
+14400 keys 0x800
+14500 keys 0
+14600 btn 13
+14800 shot
+14900 end

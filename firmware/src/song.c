@@ -12,13 +12,15 @@ enum { MELODIC_BASS, MELODIC_ARP, MELODIC_PAD, MELODIC_LEAD, MELODIC_COUNT };
                                                    A step holds its lowest bit here, the rest in its gate (the pad's chords have none) */
 #define CHORD(root, chord) ((root) | (chord) << CHORD_SHIFT)
 #define NOTE_TIE 0x80u                          /* ... and on BASS, ARP, LEAD: the note before goes on through this step (the same note) */
-#define ARP_HIT 1u                              /* ARP's step: a hit starts there (its note comes from the chord) */
+#define ARP_HIT 1u                              /* ARP's step: a hit starts there (its note comes from the chord) ... */
+#define ARP_TONES_MAX 8u                        /* ... the hit is its tone, 1 .. 8 (ARP_HIT: 1): in MODE TONES the chord's note it plays */
 #define ARP_OCTAVES_MAX 3u                      /* MODE: an order (ARP_ORDER_*) over 1 .. 3 octaves, order * 3 + octaves - 1 */
 enum { ARP_ORDER_UP, ARP_ORDER_DOWN, ARP_ORDER_UP_DOWN, ARP_ORDER_RANDOM, ARP_ORDER_COUNT };
-#define ARP_MODE_MAX (ARP_ORDER_COUNT * ARP_OCTAVES_MAX - 1u)
+#define ARP_MODE_TONES (ARP_ORDER_COUNT * ARP_OCTAVES_MAX)   /* MODE TONES: each hit plays its own tone of the chord, not the next one */
+#define ARP_MODE_MAX ARP_MODE_TONES
 #define ARP_MODE(order, octaves) ((order) * ARP_OCTAVES_MAX + (octaves) - 1u)
 static const char *const ARP_MODE_NAMES[ARP_MODE_MAX + 1u] = {"UP 1", "UP 2", "UP 3", "DOWN 1", "DOWN 2", "DOWN 3",
-                                                             "UP/DN 1", "UP/DN 2", "UP/DN 3", "RAND 1", "RAND 2", "RAND 3"};
+                                                             "UP/DN 1", "UP/DN 2", "UP/DN 3", "RAND 1", "RAND 2", "RAND 3", "TONES"};
 #define NAME_LENGTH 8u                          /* a song's or a pattern's name: 8 characters, by number in NAME_CHARACTERS */
 static const char NAME_CHARACTERS[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";   /* (0: a space; a new name is all spaces) */
 #define NAME_CHARACTER_COUNT (sizeof NAME_CHARACTERS - 1u)
@@ -62,17 +64,21 @@ typedef struct {
     uint16_t accents[1u + MELODIC_COUNT][BAR_COUNT];   /* bit s: step s is accented. The drums: every drum on it; a melodic track
                                                    (not the pad): the note starting there. A track's place as in bar_totals */
     uint8_t name[NAME_LENGTH];                  /* its name (the NAMES page), NAME_CHARACTERS by number */
+    uint8_t mixer_levels[1u + MELODIC_COUNT];   /* its own mix (the MIXER page): each track's level in this pattern, 0..MIX_MAX, on top
+                                                   of the track's LEVEL (100: as LEVEL says). A track's place as in bar_totals */
+    uint8_t mixer_mutes;                        /* bit t: track t (as there) is muted in this pattern, as SEL's mute keys mute it everywhere */
 } pattern_t;
 #define PATTERN_SIZE_BEFORE_GATES 310u          /* a pattern kept before there were gates: all of it up to them */
 #define PATTERN_SIZE_BEFORE_ARP 438u            /* ... and before there was ARP (its track was SEQUENCE): all of it up to MODE */
 #define PATTERN_SIZE_BEFORE_ACCENTS 440u        /* ... and before there were accents */
 #define PATTERN_SIZE_BEFORE_NAMES 480u          /* ... and before there were names */
+#define PATTERN_SIZE_BEFORE_MIXER 488u          /* ... and before a pattern had a mix of its own */
 _Static_assert(offsetof(pattern_t, gates) == PATTERN_SIZE_BEFORE_GATES && offsetof(pattern_t, arp_mode) == PATTERN_SIZE_BEFORE_ARP
                && offsetof(pattern_t, accents) == PATTERN_SIZE_BEFORE_ACCENTS && offsetof(pattern_t, name) == PATTERN_SIZE_BEFORE_NAMES
-               && sizeof(pattern_t) == 488u, "what is new comes after what was there");
-#define PATTERN_SIZES_COUNT 5u
-static const uint32_t PATTERN_SIZES[PATTERN_SIZES_COUNT] = {sizeof(pattern_t), PATTERN_SIZE_BEFORE_NAMES, PATTERN_SIZE_BEFORE_ACCENTS,
-                                                            PATTERN_SIZE_BEFORE_ARP, PATTERN_SIZE_BEFORE_GATES};   /* now, then as kept before */
+               && offsetof(pattern_t, mixer_levels) == PATTERN_SIZE_BEFORE_MIXER && sizeof(pattern_t) == 494u, "what is new comes after what was there");
+#define PATTERN_SIZES_COUNT 6u
+static const uint32_t PATTERN_SIZES[PATTERN_SIZES_COUNT] = {sizeof(pattern_t), PATTERN_SIZE_BEFORE_MIXER, PATTERN_SIZE_BEFORE_NAMES,
+                                                            PATTERN_SIZE_BEFORE_ACCENTS, PATTERN_SIZE_BEFORE_ARP, PATTERN_SIZE_BEFORE_GATES};   /* now, then as kept before */
 
 static uint32_t note_gate(const volatile uint8_t *bar_gates, uint32_t step)   /* bar_gates: a track's bar in gates */
 {
@@ -111,6 +117,28 @@ static uint32_t pad_chord_at(const volatile pattern_t *pattern, uint32_t bar, ui
     return 0;
 }
 
+/* ARP's tone (1 .. ARP_TONES_MAX) of a chord (as on the pad's track, not 0): the chord's notes from its root up, as
+ * MODE UP plays them (the root an octave up while it is below ARP's lowest note), then on an octave higher */
+static uint32_t arp_tone_note(uint32_t chord, uint32_t tone)
+{
+    const uint32_t type = chord >> CHORD_SHIFT, note_count = PAD_CHORDS[type].note_count, index = (tone - 1u) % ARP_TONES_MAX;
+    uint32_t root = chord & NOTE_MASK;
+    while (root < MELODIC[MELODIC_ARP].note_lowest) root += 12u;
+    return root + index / note_count * 12u + PAD_CHORDS[type].intervals[index % note_count];
+}
+
+/* the tone a note is of a chord: the tone that plays that very note, else the lowest one of its name (an octave
+ * apart), 0: none (the note is not in the chord) */
+static uint32_t arp_note_tone(uint32_t chord, uint32_t note)
+{
+    uint32_t tone;
+    for (tone = 1; tone <= ARP_TONES_MAX; tone++)
+        if (arp_tone_note(chord, tone) == note) return tone;
+    for (tone = 1; tone <= ARP_TONES_MAX; tone++)
+        if (arp_tone_note(chord, tone) % 12u == note % 12u) return tone;
+    return 0;
+}
+
 static uint32_t chord_notes(uint32_t chord)     /* bit n: the chord (as on the pad's track, 0: none) has a note n semitones above a C */
 {
     const uint32_t type = chord >> CHORD_SHIFT, root = chord & NOTE_MASK;
@@ -127,14 +155,22 @@ static void bytes_move_up(void *to, const void *from, uint32_t count)   /* to at
     while (count-- > 0u) destination[count] = source[count];
 }
 
+static void mixer_levels_full(volatile pattern_t *pattern)   /* its mix: every track as its LEVEL says (as before there was one) */
+{
+    uint32_t track;
+    for (track = 0; track < sizeof pattern->mixer_levels; track++) pattern->mixer_levels[track] = MIX_MAX;
+}
+
 /* patterns kept in an older size (kept_size), read into the start of where count of them go: each moves to its
  * place (the last first, so none is overwritten before it moved), what is new after it zero (the notes whole steps,
- * MODE UP 1, no accents). Kept before ARP, its track was SEQUENCE, with notes of its own: they go */
+ * MODE UP 1, no accents, nothing muted), the levels of its mix full. Kept before ARP, its track was SEQUENCE, with
+ * notes of its own: they go */
 static void patterns_grow(pattern_t *patterns, uint32_t count, uint32_t kept_size)
 {
     while (count-- > 0u) {
         bytes_move_up(&patterns[count], (const uint8_t *)patterns + count * kept_size, kept_size);
         memset((uint8_t *)&patterns[count] + kept_size, 0, sizeof(pattern_t) - kept_size);
+        mixer_levels_full(&patterns[count]);
         if (kept_size > PATTERN_SIZE_BEFORE_ARP) continue;
         memset(patterns[count].notes[MELODIC_ARP], 0, sizeof patterns[count].notes[MELODIC_ARP]);
         memset(patterns[count].gates[MELODIC_ARP], 0, sizeof patterns[count].gates[MELODIC_ARP]);
@@ -174,14 +210,16 @@ typedef struct {
                                                    SONG_KEY_MAX it counts as KEY_OFF (song_key) */
 } song_t;
 /* a song kept with patterns that size: older ones (all before there were names) have no name of their own either */
-#define SONG_SIZE_KEPT(pattern_size) ((pattern_size) == sizeof(pattern_t) ? sizeof(song_t)                                       : sizeof(song_t) - PATTERN_COUNT * (sizeof(pattern_t) - (pattern_size)) - NAME_LENGTH)
+#define SONG_SIZE_KEPT(pattern_size) (sizeof(song_t) - PATTERN_COUNT * (sizeof(pattern_t) - (pattern_size)) \
+                                      - ((pattern_size) < PATTERN_SIZE_BEFORE_MIXER ? NAME_LENGTH : 0u))
 _Static_assert(offsetof(song_t, patterns) == 0u, "the patterns first: a song kept with smaller ones grows in place");
-_Static_assert(sizeof(song_t) == 3984u, "the key took the padding byte: a song is as big as before");
+_Static_assert(sizeof(song_t) == 4032u, "the patterns' mixes: a song is 48 B bigger than before");
 
 static void song_grow(song_t *grown, uint32_t kept_pattern_size)   /* a song kept with patterns of an older size, read into its start */
 {
     bytes_move_up(&grown->chain, (const uint8_t *)grown + PATTERN_COUNT * kept_pattern_size, sizeof(song_t) - offsetof(song_t, chain));
     patterns_grow(grown->patterns, PATTERN_COUNT, kept_pattern_size);
+    if (kept_pattern_size >= PATTERN_SIZE_BEFORE_MIXER) return;   /* (kept with names: its name and its key came along) */
     memset(grown->name, 0, sizeof grown->name);
     grown->key = KEY_OFF;
 }
@@ -342,9 +380,11 @@ static void empty_song(void)
 {
     uint32_t index, track;
     memset((void *)&song, 0, sizeof song);
-    for (index = 0; index < PATTERN_COUNT; index++)
+    for (index = 0; index < PATTERN_COUNT; index++) {
         for (track = 0; track < sizeof song.patterns[index].bar_totals; track++)
             song.patterns[index].bar_totals[track] = 1;
+        mixer_levels_full(&song.patterns[index]);
+    }
     for (track = 0; track < MELODIC_COUNT; track++)
         sound_apply(track, 0);
     for (track = 0; track < MELODIC_COUNT; track++) song.levels[track] = MIX_MAX;   /* the mix as it was before there was one */
@@ -493,6 +533,19 @@ static void pattern_remove_bar(volatile pattern_t *pattern, uint32_t track, uint
     if (pattern->bar_totals[track] > 1u) pattern->bar_totals[track]--;
 }
 
+/* a track's bar (track: 0 the drums, 1 + melodic) copied over another of its bars, with its accents */
+static void pattern_copy_bar(volatile pattern_t *pattern, uint32_t track, uint32_t from_bar, uint32_t to_bar)
+{
+    uint32_t drum, step;
+    for (drum = 0; track == 0u && drum < DRUM_COUNT; drum++)
+        pattern->drum_hits[drum][to_bar] = pattern->drum_hits[drum][from_bar];
+    for (step = 0; track != 0u && step < STEPS_PER_BAR; step++)
+        pattern->notes[track - 1u][to_bar][step] = pattern->notes[track - 1u][from_bar][step];
+    for (step = 0; track != 0u && step < STEPS_PER_BAR / 2u; step++)   /* (two steps' gates a byte) */
+        pattern->gates[track - 1u][to_bar][step] = pattern->gates[track - 1u][from_bar][step];
+    pattern->accents[track][to_bar] = pattern->accents[track][from_bar];
+}
+
 static int pattern_valid(const volatile pattern_t *checked)
 {
     uint32_t track, melodic, bar, step;
@@ -504,7 +557,9 @@ static int pattern_valid(const volatile pattern_t *checked)
             for (step = 0; step < STEPS_PER_BAR; step++)
                 if (melodic == MELODIC_PAD ? step_value(checked->notes[melodic][bar], checked->gates[melodic][bar], melodic, step) >> CHORD_SHIFT >= PAD_CHORD_COUNT
                                            : note_gate(checked->gates[melodic][bar], step) > GATE_TENTHS_MAX) return 0;
-    return checked->arp_mode <= ARP_MODE_MAX && name_valid(checked->name);
+    for (track = 0; track < sizeof checked->mixer_levels; track++)
+        if (checked->mixer_levels[track] > MIX_MAX) return 0;
+    return checked->arp_mode <= ARP_MODE_MAX && name_valid(checked->name) && checked->mixer_mutes >> sizeof checked->mixer_levels == 0u;
 }
 
 static int song_valid(const volatile song_t *checked)

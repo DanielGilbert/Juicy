@@ -30,7 +30,8 @@ the screen.
   SOFT; PAD: WARM, BRIGHT, SLOW; LEAD: SUPERSAW, SQUARE, SOFT), a page of knobs to shape them, and two places of
   your own (USER1, USER2) that every song can use.
 - **A mixer:** each track's level (each drum's), pan, and how much goes into the tempo-synced echo and the reverb;
-  a limiter keeps the sum clean.
+  a limiter keeps the sum clean. **Each pattern has a mix of its own** on top (FX on JUICY, twice): mute the pad
+  for the patterns where the arpeggio should play alone, or bring a track down in one part only.
 - **Mutes** for jamming: drop a track out and bring it back while the song plays.
 - **Three demo songs** (acid techno, uplifting trance, lo-fi), **8 songs** of your own, **a library of 16 patterns,**
   and the song you work on saves itself.
@@ -83,8 +84,8 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | **PLAY** | start and stop (any time). On SONGS and LIBRARY: **listen** to the selected place (see below) |
 | **HOME** | the JUICY screen, and back to the track |
 | **SAVE** | the SONGS screen, again the LIBRARY, again back |
-| **FX** | a track's pages in turn: its notes, its sound (not DRUMS), its mix. On JUICY: the **NAMES** screen and back |
-| **OCT- / OCT+** | the bar before / the next bar. With EDIT on a track: OCT+ past the last bar adds one (up to 4), **holding OCT-** removes the bar on the screen from that track (its only bar: emptied). While recording: the keys an octave down / up (lit: they are) |
+| **FX** | a track's pages in turn: its notes, its sound (not DRUMS), its mix. On JUICY: the **NAMES** screen, the pattern's **MIXER**, and back |
+| **OCT- / OCT+** | the bar before / the next bar (when let go). With EDIT on a track: OCT+ past the last bar adds one (up to 4), empty; **holding OCT+** there adds a copy of the last bar (the first 16 steps into the next 16); **holding OCT-** removes the bar on the screen from that track (its only bar: emptied). While recording: the keys an octave down / up (lit: they are) |
 | **PRESETS** (knob) | the pattern on the screen, A to H, on every screen |
 | **SEQ** | with EDIT: the chain on or off (lit: the chain plays; dark: the pattern on the screen loops) |
 | **REC** | on JUICY with EDIT: copies the pattern on the screen into the first empty one. On BASS, ARP, PAD, LEAD with EDIT: **recording** on or off (REC lit, see below: stopped, step by step; playing, live). **Holding REC** with EDIT clears: on JUICY the whole pattern on the screen, on DRUMS the selected drum (the orange row), on BASS, ARP, PAD, LEAD that track, in the pattern on the screen. The bars stay |
@@ -99,10 +100,11 @@ without EDIT**: the knobs, SEQ and REC wait for it. Only PLAY, moving around and
 | --- | --- | --- | --- | --- | --- |
 | **JUICY** | TEMPO | REVERB | SWING of the pattern on the screen: 50 (straight) to 80, every second step later | KEY of the song: OFF, or C MIN to B MAJ (see **The song's key** below) | the chain: with EDIT a lower key puts the pattern on the screen in that place, or takes it out. The song's name at the right |
 | **NAMES** (FX on JUICY) | LETTER: the character at the cursor (with EDIT): A to Z, 0 to 9, -, space | | | | the song's name and the name of the pattern on the screen, 8 characters each. **SELECT** or a lower key moves the cursor: keys 1 to 8 the song's name, 9 to 16 the pattern's |
+| **MIXER** (FX twice on JUICY) | LEVEL of the selected track (the orange row) in this pattern, 0 to 100 (with EDIT), on top of the track's own LEVEL | | | | the pattern on the screen's own mix, a row per track. **SELECT** picks the track; with EDIT the lower keys 1 to 5 (DRUMS, BASS, ARP, PAD, LEAD) **mute** that track in this pattern only, or bring it back (lit: it plays; a muted row is dark). It travels with the pattern into copies and the library |
 | **DRUMS** | GROOVE: a well-known drum groove plays in place of the drums (see **Drum grooves** below) | | | its usual BPM | **SELECT** (knob) picks the drum the keys edit, the orange row (EDIT or not); three drums at a time, the marks at the bottom say which page |
 | **BASS, LEAD** | NOTE | CUTOFF | DECAY | LENGTH: how long a note is: 10 % to 90 % of a step, or 1 to 16 steps (to the bar's end at most) | a piano roll of the bar on the screen; a long note is one bar in it. See **Notes** below |
-| **ARP** | MODE of the pattern on the screen: UP, DOWN, UP/DN or RAND, over 1 to 3 octaves | CUTOFF | DECAY | LENGTH, as on BASS | hits, not notes: they play the pad's chord. See **ARP** below |
-| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD: AUTO (with a key: the chord the key has on that note), MIN, MAJ, MIN7, MAJ7, DOM7, SUS2, SUS4, DIM, POWER (root and fifth), ROOT (the root alone) | CHORDS: a well-known progression plays in place of the chords (see **Chord progressions** below) | a chord sounds until the next one. See **Notes** below |
+| **ARP** | MODE of the pattern on the screen: UP, DOWN, UP/DN or RAND, over 1 to 3 octaves, or TONES. In TONES, with EDIT and the cursor on a hit: its TONE, 1 to 8 | CUTOFF | DECAY | LENGTH, as on BASS | hits, not notes: they play the pad's chord. See **ARP** below |
+| **PAD** | NOTE (the chord's root) | CUTOFF | CHORD: AUTO (with a key: the chord the key has on that note), MIN, MAJ, MIN7, MAJ7, DOM7, SUS2, SUS4, DIM, POWER (root and fifth), ROOT (the root alone), MADD9, ADD9 (minor, major with an added ninth, close: B C# D F#) | CHORDS: a well-known progression plays in place of the chords (see **Chord progressions** below) | a chord sounds until the next one. See **Notes** below |
 | **Sound page** (FX) | WAVE | RESO | ATTACK | ENV | the pad's: SPREAD, RESO, ATTACK, RELEASE. A `*` after the name: changed. With EDIT, **SEQ** keeps the sound as USER1, **REC** as USER2 (each asks twice). The keys always play here |
 | **Mix page** (FX) | LEVEL (DRUMS: the selected drum's, the orange row) | PAN | REVERB | ECHO | bars for each; on DRUMS one per drum. The keys always play here (on DRUMS: a key or SELECT picks the drum) |
 | **SONGS** (SAVE) | DEMO1 to DEMO3, NEW, 1 to 8 | on NEW: STYLE, what a new song starts as (see **Styles** below) | | | **SEQ** loads (asks twice), **REC** saves your song there (twice over a song), **PLAY** lets you listen first. No EDIT needed; loading and saving only while stopped. A kept song shows its name |
@@ -231,6 +233,13 @@ ARP is an arpeggiator: it plays the chord the PAD sounds, one note at a time.
   when placed. LENGTH works as on BASS. Recording, any key puts a hit at the cursor.
 - **Each hit plays the next note of the chord** (its one to four notes from the root, from C3 up) in the order **MODE** (KNOB1) says:
   UP, DOWN, UP/DN (up and back down), RAND, over 1, 2 or 3 octaves. Each pattern has its own MODE.
+- **MODE TONES: each hit plays its own note of the chord**, its **TONE**: 1 to 8, the chord's notes from the root
+  up (as UP plays them), 5 to 8 an octave higher. Over B MADD9 (B C# D F#) 1 is B, 2 C#, 3 D, 4 F#. One bar of
+  tones is a riff that follows every chord the PAD plays: 1 4 2 3 1 1 4 2 3 is B F# C# D B B F# C# D over Bm, and E B
+  F# G E E B F# G over Em. With EDIT and the cursor on a hit, KNOB1 is its TONE (on an empty step: MODE); a new hit
+  gets the last tone. The keys of the chord are lit: one played gives the next hit its tone, and recording puts that
+  tone at the cursor (or live); another key only sounds. The roll draws each hit at its tone's height, 1 at the
+  bottom. In the other MODEs the tones stay, unused.
 - **A chord on the PAD starts it over** from its first note. Hold a chord on the PAD's keys while the song plays,
   and ARP follows that one until you let go.
 - **No chord, no arpeggio:** while the PAD has no chord (an empty pad track, a pattern without one), ARP is silent.
@@ -243,7 +252,8 @@ A key or button that does something on this screen **glows** dimly; one that is 
 (a set step, a used chain place) is **lit**. With EDIT on a track, the steps 1, 5, 9 and 13 glow brighter: the beats.
 PLAY flashes on every beat while the song plays. On the JUICY screen, with SEL and EDIT off, the keys follow the
 song while it plays: the lower key of the step that sounds is lit, and OP1 to OP4 show the bars of the playing
-pattern (glowing), the one that sounds lit. A muted track's name is dark on its screen.
+pattern (glowing), the one that sounds lit. A muted track's name is dark on its screen (muted with SEL, or in the
+pattern on the screen by its MIXER).
 
 ## MIDI and USB
 

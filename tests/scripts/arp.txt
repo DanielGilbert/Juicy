@@ -22,8 +22,8 @@
 2000 keys 0x4
 2050 keys 0
 2500 shot
-# KNOB1 to the end: RAND 3
-3000 enc 2 20
+# KNOB1 eleven on: RAND 3 (the last of the orders; TONES comes after it)
+3000 enc 2 11
 3500 shot
 7000 btn 12
 8000 end

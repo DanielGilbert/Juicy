@@ -58,11 +58,15 @@ static volatile uint32_t steps_since_play;      /* the steps started since PLAY 
 static volatile uint32_t step_started_ms;       /* ... and when the last of them did, in fm1_ms (the ISR writes) */
 
 /* the mixer: each track (mono) at its LEVEL and PAN into out, and from there into the echo and the reverb; the echo
- * comes back into both. Gains are Q12 (4096: as it is), so the mix as it was made adds up to the same numbers. */
+ * comes back into both. Gains are Q12 (4096: as it is), so the mix as it was made adds up to the same numbers.
+ * Playing, each track is also at its level in the playing pattern's own mix (stopped: as it is); from one pattern to
+ * the next that level glides (PATTERN_GAIN_STEP a frame), so a note that rings on does not click */
+#define PATTERN_GAIN_STEP 8                     /* Q12 a frame: from silent to full in 512 frames, about 12 ms */
 static void render(int32_t *out, uint32_t frame_count)   /* at most BLOCK_FRAMES_MAX */
 {
     static int32_t track_out[BLOCK_FRAMES_MAX], echo_send[BLOCK_FRAMES_MAX], reverb_send[BLOCK_FRAMES_MAX];
     static int32_t echo_return[2u * BLOCK_FRAMES_MAX];   /* (L R L R ...) */
+    static int32_t pattern_gains[1u + MELODIC_COUNT] = {4096, 4096, 4096, 4096, 4096};   /* each track's in the pattern's mix, as it glides */
     uint32_t track, i;
     memset(echo_send, 0, frame_count * sizeof echo_send[0]);
     memset(reverb_send, 0, frame_count * sizeof reverb_send[0]);
@@ -74,6 +78,8 @@ static void render(int32_t *out, uint32_t frame_count)   /* at most BLOCK_FRAMES
         const int32_t right = pan >= MIX_MAX / 2u ? 4096 : (int32_t)(pan * 4096u / (MIX_MAX / 2u));
         const int32_t echo_gain = (int32_t)((track ? song.echo[melodic] : song.drum_echo) * 5u);   /* of 512: echo / 100, near enough */
         const int32_t reverb_gain = (int32_t)(song.reverb_sends[track] * 4096u / MIX_MAX);
+        const int32_t pattern_gain_wanted = playing ? (int32_t)(song.patterns[playing_pattern].mixer_levels[track] * 4096u / MIX_MAX) : 4096;
+        int32_t pattern_gain = pattern_gains[track];
         memset(track_out, 0, frame_count * sizeof track_out[0]);
         if (!track) {
             int32_t drum_levels[DRUM_COUNT];
@@ -88,12 +94,17 @@ static void render(int32_t *out, uint32_t frame_count)   /* at most BLOCK_FRAMES
             synth_render(&melodic_voices[melodic], &shape, track_out, frame_count, song.cutoff[melodic], song.decay[melodic]);
         }
         for (i = 0; i < frame_count; i++) {
-            const int32_t sample = (track_out[i] * level) >> 12;
+            int32_t sample;
+            if (pattern_gain != pattern_gain_wanted)
+                pattern_gain += pattern_gain_wanted - pattern_gain > PATTERN_GAIN_STEP ? PATTERN_GAIN_STEP
+                              : pattern_gain - pattern_gain_wanted > PATTERN_GAIN_STEP ? -PATTERN_GAIN_STEP : pattern_gain_wanted - pattern_gain;
+            sample = (((track_out[i] * level) >> 12) * pattern_gain) >> 12;
             out[2u * i] += (sample * left) >> 12;
             out[2u * i + 1u] += (sample * right) >> 12;
             echo_send[i] += (sample * echo_gain) >> 9;
             reverb_send[i] += (sample * reverb_gain) >> 12;
         }
+        pattern_gains[track] = pattern_gain;
     }
     echo_render(echo_return, echo_send, frame_count, ECHO_STEPS * frames_per_step_q8 >> 8);
     for (i = 0; i < frame_count; i++) {         /* the echo: heard, and into the reverb */
@@ -217,9 +228,10 @@ static void app_audio(int32_t *out, uint32_t frame_count)
         if (step_waits && !swing_frames_left) { /* the step sounds: on its start, a swung one later (always before the next starts) */
             const volatile pattern_t *pattern = &song.patterns[pattern_now];
             const uint32_t bar = waiting_bar, step = waiting_step;
+            const uint32_t muted = muted_tracks | pattern->mixer_mutes;   /* (muted everywhere, or in this pattern) */
             step_waits = 0;
             for (drum = 0; drum < DRUM_COUNT; drum++)
-                if (!(muted_tracks & 1u) && pattern->drum_hits[drum][bar % pattern->bar_totals[0]] >> step & 1u)
+                if (!(muted & 1u) && pattern->drum_hits[drum][bar % pattern->bar_totals[0]] >> step & 1u)
                     drums_trigger(drum, pattern->accents[0][bar % pattern->bar_totals[0]] >> step & 1u);
             {                                   /* a chord on the pad's step: ARP starts over on it (the pad comes after ARP below) */
                 const uint32_t pad_bar = bar % pattern->bar_totals[1u + MELODIC_PAD];
@@ -233,9 +245,9 @@ static void app_audio(int32_t *out, uint32_t frame_count)
                 const uint32_t track_bar = bar % pattern->bar_totals[1u + melodic];
                 const uint32_t gate = melodic == MELODIC_PAD ? 0u : note_gate(pattern->gates[melodic][track_bar], step);   /* (the pad's holds its chord) */
                 uint32_t note = step_value(pattern->notes[melodic][track_bar], pattern->gates[melodic][track_bar], melodic, step);
-                if (muted_tracks >> (1u + melodic) & 1u) note = 0;   /* muted: as if the steps were empty */
+                if (muted >> (1u + melodic) & 1u) note = 0;   /* muted: as if the steps were empty */
                 if (melodic == MELODIC_PAD) {   /* but the pad holds its chord until the next one */
-                    if (!note && muted_tracks >> (1u + melodic) & 1u && pad_pattern_value) {   /* (muted: not that one either) */
+                    if (!note && muted >> (1u + melodic) & 1u && pad_pattern_value) {   /* (muted: not that one either) */
                         pad_pattern_value = 0;
                         melodic_note_off(melodic);
                     }
@@ -251,7 +263,8 @@ static void app_audio(int32_t *out, uint32_t frame_count)
                         arp_chord_used = chord;
                         arp_position = 0;
                     }
-                    note = chord ? arp_note(chord, pattern->arp_mode, arp_position++) : 0u;
+                    note = !chord ? 0u : pattern->arp_mode == ARP_MODE_TONES ? arp_tone_note(chord, note)   /* (TONES: the hit's own tone) */
+                                                                             : arp_note(chord, pattern->arp_mode, arp_position++);
                 }
                 if (note) melodic_note_on(melodic, note, pattern->accents[1u + melodic][track_bar] >> step & 1u);
                 else melodic_note_off(melodic);

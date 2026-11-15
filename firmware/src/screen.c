@@ -27,14 +27,15 @@
 #define NO_BAR BAR_COUNT
 
 /* a page per track, and the one behind HOME. A melodic track's page is MELODIC_FIRST_PAGE + its number */
-enum { PAGE_DRUMS, MELODIC_FIRST_PAGE, TRACK_COUNT = MELODIC_FIRST_PAGE + MELODIC_COUNT, PAGE_GLOBAL = TRACK_COUNT, PAGE_SONGS, PAGE_LIBRARY, PAGE_NAMING };
-_Static_assert(sizeof ((pattern_t *)0)->bar_totals == TRACK_COUNT, "a track's page is its place in bar_totals");
+enum { PAGE_DRUMS, MELODIC_FIRST_PAGE, TRACK_COUNT = MELODIC_FIRST_PAGE + MELODIC_COUNT, PAGE_GLOBAL = TRACK_COUNT, PAGE_SONGS, PAGE_LIBRARY, PAGE_NAMING, PAGE_MIXER };
+_Static_assert(sizeof ((pattern_t *)0)->bar_totals == TRACK_COUNT && sizeof ((pattern_t *)0)->mixer_levels == TRACK_COUNT,
+               "a track's page is its place in bar_totals and in a pattern's mix");
 
-static const char *const PAGE_NAMES[] = {"DRUMS", "BASS", "ARP", "PAD", "LEAD", "JUICY", "SONGS", "LIBRARY", "NAMES"};
+static const char *const PAGE_NAMES[] = {"DRUMS", "BASS", "ARP", "PAD", "LEAD", "JUICY", "SONGS", "LIBRARY", "NAMES", "MIXER"};
 static const char *const DRUM_NAMES[DRUM_COUNT] = {"KICK", "HAT", "CLAP", "OPEN HAT", "SNARE", "TOM"};
 #define DRUMS_PER_PAGE 3u                       /* the drums' page shows three at a time */
 #define DRUM_PAGES (DRUM_COUNT / DRUMS_PER_PAGE)
-static const char *const CHORD_NAMES[PAD_CHORD_COUNT + 1u] = {"MIN", "MAJ", "MIN7", "MAJ7", "DOM7", "SUS2", "SUS4", "DIM", "POWER", "ROOT", "AUTO"};
+static const char *const CHORD_NAMES[PAD_CHORD_COUNT + 1u] = {"MIN", "MAJ", "MIN7", "MAJ7", "DOM7", "SUS2", "SUS4", "DIM", "POWER", "ROOT", "MADD9", "ADD9", "AUTO"};
 static const uint8_t STEP_KEYS[STEPS_PER_BAR] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};   /* the lower keys, left to right */
 static const uint8_t TRACK_KEYS[TRACK_COUNT] = {1, 3, 5, 8, 10};   /* the upper keys printed OP1 .. OP5 */
 static const uint8_t MUTE_KEYS[TRACK_COUNT] = {13, 15, 17, 20, 22};   /* (with SEL) the same five an octave up */
@@ -338,22 +339,33 @@ static void draw_sound(uint32_t melodic, int edited, uint32_t note)
 }
 
 /* a track's mix page: a row per value, its name and a bar (PAN: a mark, the middle marked); on DRUMS a row per drum's
- * LEVEL, the selected drum's orange */
+ * LEVEL, the selected drum's orange. The MIXER page: a row per track, dark where it is muted in the pattern */
 #define MIX_ROW_HEIGHT 22u
 #define MIX_BAR_X 96
 #define MIX_BAR_WIDTH 140
 
-static void draw_mix_row(uint32_t row, const char *name, uint32_t value, int centred, int selected)
+static void draw_mix_row(uint32_t row, const char *name, uint32_t value, int centred, int selected, int muted)
 {
+    const uint16_t bar_colour = muted ? C_STEP_ODD_BEAT : selected ? C_ACCENT : C_HIT;
     cv_begin(240, MIX_ROW_HEIGHT, C_BLACK);
-    cv_text(4, 3, &FONT_S, name, selected ? C_ACCENT : C_LABEL);
+    cv_text(4, 3, &FONT_S, name, selected ? C_ACCENT : muted ? C_STEP_ODD_BEAT : C_LABEL);
     cv_rect(MIX_BAR_X, 6, MIX_BAR_WIDTH, 10, C_STEP_EVEN_BEAT);
     if (centred) {
         cv_rect(MIX_BAR_X + MIX_BAR_WIDTH / 2 - 1, 4, 2, 14, C_LABEL);
-        cv_rect(MIX_BAR_X + (int32_t)(value * (MIX_BAR_WIDTH - 4) / MIX_MAX), 4, 4, 14, selected ? C_ACCENT : C_HIT);
+        cv_rect(MIX_BAR_X + (int32_t)(value * (MIX_BAR_WIDTH - 4) / MIX_MAX), 4, 4, 14, bar_colour);
     } else
-        cv_rect(MIX_BAR_X, 6, (int32_t)(value * MIX_BAR_WIDTH / MIX_MAX), 10, selected ? C_ACCENT : C_HIT);
+        cv_rect(MIX_BAR_X, 6, (int32_t)(value * MIX_BAR_WIDTH / MIX_MAX), 10, bar_colour);
     cv_blit(0, BODY_TOP + row * MIX_ROW_HEIGHT);
+}
+
+/* under the MIXER page's rows: that it is the pattern's own, and what the keys do */
+static void draw_mixer_hint(uint32_t pattern_index, int editing)
+{
+    char hint[32];
+    with_letter(hint, editing ? "KEYS 1-5: MUTE IN @" : "PATTERN @ ONLY. EDIT: MIX", pattern_index);
+    cv_begin(240, BODY_HEIGHT - TRACK_COUNT * MIX_ROW_HEIGHT, C_BLACK);
+    cv_text(4, 6, &FONT_S, hint, C_LABEL);
+    cv_blit(0, BODY_TOP + TRACK_COUNT * MIX_ROW_HEIGHT);
 }
 
 /* row: of the page; hint: what to do (no drums yet), at the right of the name, or 0 */
@@ -401,9 +413,11 @@ static void draw_roll(const volatile pattern_t *pattern, uint32_t melodic, uint3
         const int32_t note_width = gate ? (int32_t)(gate * 12u / 10u + 1u) : step_x(step) + 12 - note_x;   /* (10 %: 2 px, 90 %: 11) */
         const int accented = note && !tied && pattern->accents[1u + melodic][bar] >> step & 1u;   /* (on the note's first step) */
         cv_rect(step_x(step), 0, 12, (int32_t)ROLL_HEIGHT, step / 4u % 2u ? C_ROLL_EVEN_BEAT : C_ROLL_ODD_BEAT);
-        if (melodic == MELODIC_ARP) {           /* ARP's hits have no notes: a lane through the middle */
-            if (note) cv_rect(note_x, (int32_t)ROLL_HEIGHT / 3, note_width, (int32_t)ROLL_HEIGHT / 3, C_HIT);
-            if (accented) cv_rect(note_x, (int32_t)ROLL_HEIGHT / 3, note_width, ACCENT_BAND_HEIGHT, C_WHITE);
+        if (melodic == MELODIC_ARP) {           /* ARP's hits have no notes: a lane through the middle (TONES: each at its tone's height, 1 the lowest) */
+            const int tones = pattern->arp_mode == ARP_MODE_TONES;
+            const int32_t hit_y = tones ? (int32_t)((ARP_TONES_MAX - 1u - (note - 1u) % ARP_TONES_MAX) * (ROLL_HEIGHT / ARP_TONES_MAX)) : (int32_t)ROLL_HEIGHT / 3;
+            if (note) cv_rect(note_x, hit_y, note_width, tones ? (int32_t)(ROLL_HEIGHT / ARP_TONES_MAX) - 1 : (int32_t)ROLL_HEIGHT / 3, C_HIT);
+            if (accented) cv_rect(note_x, hit_y, note_width, ACCENT_BAND_HEIGHT, C_WHITE);
             continue;
         }
         if (melodic != MELODIC_PAD && song_key() != KEY_OFF) {   /* with a key: the chord's notes' rows, tinted */

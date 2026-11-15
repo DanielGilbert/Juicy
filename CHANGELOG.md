@@ -79,3 +79,15 @@ The first version: Juicy on the FM-1, tested on the device since 11.11.2026.
   names, the others over the roll), with EDIT, without it and while recording. Recording, OCT- / OCT+ show the notes
   the keys play now (e.g. `F2 TO C4`) for 2 s. New screenshots of DEMO1 in the README.
 - DRUMS: GROOVE's value is no longer half covered by the marks of the drums' pages.
+- A mix per pattern: FX on JUICY goes round NAMES, MIXER and back. MIXER is the pattern on the screen's own mix: with
+  EDIT the lower keys 1 to 5 mute a track in this pattern only (the arpeggio alone for a few bars, without the pad),
+  SELECT and KNOB1 set a track's level in it, on top of the track's LEVEL; from one pattern to the next the level
+  glides for 12 ms, so nothing clicks. A pattern is 494 B (was 488), a song 4032 of 4084 B; songs and library
+  patterns kept before load with every track full and nothing muted.
+- Copying a bar: with EDIT on a track's last bar, holding OCT+ adds a bar that is a copy of it (notes, gates,
+  accents); tapped, the new bar is empty as before. OCT+ now moves when it is let go, as OCT- does.
+- ARP's MODE TONES (after RAND 3): each hit plays its own tone of the pad's chord, 1 to 8 (the chord's notes from the
+  root up, then an octave higher), so a bar of hits is a riff that follows the chords. KNOB1 is a hit's TONE with the
+  cursor on it; the chord's keys are lit and give the tone, also when recording. The tone lives in the hit's step
+  (no more storage); hits placed before are tone 1.
+- PAD chords MADD9 and ADD9: minor and major with an added ninth, voiced close (root, ninth, third, fifth).
