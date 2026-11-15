@@ -302,7 +302,7 @@ compares the sound, the screens and the MIDI out with a list kept before (`sh te
 `sh tests/regress.sh` after the change: `SAME`, or the scripts whose output differs).
 
 **Versions:** the number is in [VERSION](VERSION), and a plain build shows it on the start screen as `0.1-dev`
-(identity `FM-1_940`). A release is a tag `v0.1`: GitHub builds `juicy-0.1.fwsc` (identity `FM-1_941`, the start
+(identity `FM-1_8860000`). A release is a tag `v0.1`: GitHub builds `juicy-0.1.fwsc` (identity `FM-1_8860001`, the start
 screen `0.1`). Then `VERSION` moves on to the next number. What changed is in [CHANGELOG.md](CHANGELOG.md).
 
 The chip has no floating point and no 64-bit division; [docs/RULES.md](docs/RULES.md) has its rules,

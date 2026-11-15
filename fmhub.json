@@ -1,0 +1,8 @@
+{
+  "what": "A groovebox for jamming, made easy to pick up: drums, bass, an arpeggiator that follows the pad's chords, a pad and a lead, in patterns and a chain. Pick a key and the keys light up what fits; grooves, chord progressions and a demo song get you started. Undo, live recording, a mixer per pattern.",
+  "author": "Daniel Gilbert",
+  "kinds": ["groove", "chords"],
+  "cheat": "https://github.com/DanielGilbert/Juicy#readme",
+  "image": "docs/juicy-home.png",
+  "color": "#FF8C00"
+}

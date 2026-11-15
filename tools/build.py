@@ -9,7 +9,7 @@ Outputs in build/: juicy.bin (app), loader/ota.bin (update loader),
 juicy.fwsc (package). See README.md for the toolchain and the SDK.
 
 --board smk37 (or BOARD=smk37) builds for the M-Vave SMK-37 (docs/SMK37.md): -DBOARD_SMK37=1 for the app and the
-loader, identity SMK-37 Pro_990 (release X.Y: SMK-37 Pro_99Y), the SMK flash layout (fm1pkg_make.py, app slot
+loader, identity SMK-37 Pro_8860000 (release X.Y: SMK-37 Pro_8860X0Y), the SMK flash layout (fm1pkg_make.py, app slot
 0x97400), the package build/juicy-smk37.fwsc. --model elite / mke (or MODEL=) with smk37: the same build under the
 SMK-37 Elite's or the MKE-P37's model name (identity, loader and update record; -DSMK_MODEL), so M-Vave's updater
 still takes that unit's factory package: juicy-smk37-elite.fwsc, -mke.fwsc. The default stays the FM-1.
@@ -55,13 +55,13 @@ SDK_SHA256 = {
 }
 
 BOARD = "fm1"                       # fm1 (default) or smk37: BOARD env or --board
-BOARD_PREFIX = {"fm1": "FM-1_94", "smk37": "SMK-37 Pro_94"}   # identity: prefix + minor (0: a dev build)
+BOARD_PREFIX = {"fm1": "FM-1_886", "smk37": "SMK-37 Pro_886"}   # identity: prefix + MMmm (0000: a dev build)
 BOARD_DEFS = {"fm1": [], "smk37": ["-DBOARD_SMK37=1"]}
 MODELS = {"pro": "SMK-37 Pro", "elite": "SMK-37 Elite", "mke": "MKE-P37"}   # smk37: one keyboard, three names
 DATA_FAMILY = "JUICY"               # the SMK store's owner tag (store.h): 1..7 of A-Z 0-9. Your fork: your own
 SCREEN_NAME = "JUICY"               # the update loader's screen (FM-1, ldr_screen.c): the name and its colour (RGB565)
 SCREEN_COLOUR = 0xFC60              # orange, #FF8C00
-PRODUCT = "FM-1_940"                # Juicy: 94N (OUR_LOADER in the installer wants FM-1_9NN). Your fork: pick your own
+PRODUCT = "FM-1_8860000"            # Juicy: 886MMmm (the update loader stays ota-FM-1_900). Your fork: pick your own
 VERSION = None                      # APP_VER: --release X.Y, else the VERSION file + "-dev"
 
 
@@ -298,7 +298,7 @@ def mmio_check():
 def main():
     global PRODUCT, VERSION, BOARD, APP_SLOT
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_94Y, version string X.Y")
+    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_8860X0Y, version string X.Y")
     ap.add_argument("--board", choices=sorted(BOARD_PREFIX), default=None,
                     help="target board: fm1 (default) or smk37 (default: $BOARD, else fm1)")
     ap.add_argument("--model", choices=sorted(MODELS), default=None,
@@ -318,16 +318,16 @@ def main():
         BOARD_DEFS[BOARD] = [*BOARD_DEFS[BOARD], f'-DSMK_MODEL="{MODELS[model]}"']
         BOARD_PREFIX[BOARD] = BOARD_PREFIX[BOARD].replace(MODELS["pro"], MODELS[model])
         suffix += "-" + model
-    PRODUCT = BOARD_PREFIX[BOARD] + "0"
+    PRODUCT = BOARD_PREFIX[BOARD] + "0000"
     name = f"juicy{suffix}.fwsc"
     if a.release:                   # one digit each: the identity has room for two (X.Y; a .Z only in the text)
         m = re.fullmatch(r"(\d)\.(\d)(\.\d)?(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z or X.Y-suffix, one digit each")
-        PRODUCT = BOARD_PREFIX[BOARD] + m[2]
+        PRODUCT = BOARD_PREFIX[BOARD] + f"{int(m[1]):02}{int(m[2]):02}"
         VERSION = m[1] + "." + m[2] + (m[3] or "")
         name = f"juicy-{a.release}{suffix}.fwsc"
-    else:                           # a dev build: the version it leads to, identity ..._940 as before
+    else:                           # a dev build: the version it leads to, identity ..._8860000
         VERSION = (SRC / "VERSION").read_text().strip() + "-dev"
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK

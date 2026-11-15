@@ -5,7 +5,8 @@ release shows it on the start screen with `-dev` (`0.1-dev`).
 
 ## 0.1 (not released yet)
 
-The first version: Juicy on the FM-1, tested on the device since 11.11.2026.
+The first version: Juicy on the FM-1, tested on the device since 11.11.2026. Its identity is `FM-1_8860001` (a
+dev build: `FM-1_8860000`).
 
 - Five tracks: DRUMS (kick, hat, clap, open hat, snare, tom), BASS, ARP, PAD (chords) and LEAD, each with
   1 to 4 bars of 16 steps.
