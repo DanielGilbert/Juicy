@@ -5,13 +5,14 @@
 5 btn 8
 # EDIT: the knobs, SEQ and REC work only with it
 10 btn 6
-# OP3: the ARP track. FX twice: its mix page, where the keys play
+# OP3: the ARP track. FX three times: its mix page, where the keys play
 290 btn 3
 300 keys 0x20
 350 keys 0
 360 btn 6
 380 btn 2
 390 btn 2
+395 btn 2
 # C#4 (key 8, 277 Hz) for 200 ms: the test song sends 50 of 100 into the echo
 1000 keys 0x100
 1200 keys 0

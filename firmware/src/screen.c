@@ -27,11 +27,11 @@
 #define NO_BAR BAR_COUNT
 
 /* a page per track, and the one behind HOME. A melodic track's page is MELODIC_FIRST_PAGE + its number */
-enum { PAGE_DRUMS, MELODIC_FIRST_PAGE, TRACK_COUNT = MELODIC_FIRST_PAGE + MELODIC_COUNT, PAGE_GLOBAL = TRACK_COUNT, PAGE_SONGS, PAGE_LIBRARY, PAGE_NAMING, PAGE_MIXER };
-_Static_assert(sizeof ((pattern_t *)0)->bar_totals == TRACK_COUNT && sizeof ((pattern_t *)0)->mixer_levels == TRACK_COUNT,
-               "a track's page is its place in bar_totals and in a pattern's mix");
+enum { PAGE_DRUMS, MELODIC_FIRST_PAGE, TRACK_COUNT = MELODIC_FIRST_PAGE + MELODIC_COUNT, PAGE_GLOBAL = TRACK_COUNT, PAGE_SONGS, PAGE_LIBRARY, PAGE_NAMING, PAGE_MIXER, PAGE_DRONE, PAGE_ECHO };
+_Static_assert(sizeof ((pattern_t *)0)->bar_totals == TRACK_COUNT && sizeof ((pattern_t *)0)->mixer_levels == TRACK_COUNT + 1u,
+               "a track's page is its place in bar_totals and in a pattern's mix (after them: the drone)");
 
-static const char *const PAGE_NAMES[] = {"DRUMS", "BASS", "ARP", "PAD", "LEAD", "JUICY", "SONGS", "LIBRARY", "NAMES", "MIXER"};
+static const char *const PAGE_NAMES[] = {"DRUMS", "BASS", "ARP", "PAD", "LEAD", "JUICY", "SONGS", "LIBRARY", "NAMES", "MIXER", "DRONE", "ECHO"};
 static const char *const DRUM_NAMES[DRUM_COUNT] = {"KICK", "HAT", "CLAP", "OPEN HAT", "SNARE", "TOM"};
 #define DRUMS_PER_PAGE 3u                       /* the drums' page shows three at a time */
 #define DRUM_PAGES (DRUM_COUNT / DRUMS_PER_PAGE)
@@ -309,14 +309,15 @@ static void draw_naming(const volatile uint8_t *pattern_name, uint32_t pattern_i
 
 /* what the sound page says under the sound's name */
 enum { SOUND_NOTE_NONE, SOUND_NOTE_KEEP_ASKED, SOUND_NOTE_KEEP_ASKED_2, SOUND_NOTE_KEPT, SOUND_NOTE_KEPT_2 };
-enum { FX_PAGE_NOTES, FX_PAGE_SOUND, FX_PAGE_MIX };   /* a track's pages, FX goes round them */
+enum { FX_PAGE_NOTES, FX_PAGE_SOUND, FX_PAGE_OSC, FX_PAGE_MIX };   /* a track's pages, FX goes round them (DRUMS: the notes and the mix) */
 #define SOUND_HEIGHT 124u
 
 static const char *const WAVE_NAMES[SYNTH_WAVE_COUNT] = {"SAW", "SQUARE", "PULSE", "2 SAWS", "SOFT"};
+static const char *const OSC2_NAMES[SYNTH_OSC2_COUNT] = {"DETUNE", "OCT -1", "FIFTH", "OCT +1"};
 
-/* a melodic track's sound page: the name of the sound (a * when it has been changed since), what ALGORITHM, SEQ and
- * REC do, or what has just happened */
-static void draw_sound(uint32_t melodic, int edited, uint32_t note)
+/* a melodic track's sound pages (SOUND, OSC: title): the name of the sound (a * when it has been changed since), what
+ * ALGORITHM, SEQ and REC do, or what has just happened */
+static void draw_sound(const char *title, uint32_t melodic, int edited, uint32_t note)
 {
     static const char *const NOTES[] = {"", "SEQ AGAIN: KEEP AS USER1", "REC AGAIN: KEEP AS USER2", "KEPT AS USER1", "KEPT AS USER2"};
     const char *source = sound_name(melodic, song.sound_choices[melodic]);
@@ -326,7 +327,7 @@ static void draw_sound(uint32_t melodic, int edited, uint32_t note)
     if (edited) name[length++] = '*';
     name[length] = 0;
     cv_begin(240, SOUND_HEIGHT, C_BLACK);
-    cv_text(4, 0, &FONT_S, "SOUND", C_LABEL);
+    cv_text(4, 0, &FONT_S, title, C_LABEL);
     cv_text(4, 20, &FONT_L, name, C_WHITE);
     if (note)
         cv_text(4, 64, &FONT_S, NOTES[note], C_ACCENT);
@@ -338,16 +339,49 @@ static void draw_sound(uint32_t melodic, int edited, uint32_t note)
     cv_blit(0, BODY_TOP);
 }
 
+static const char *const LFO_RATE_NAMES[LFO_RATE_COUNT] = {"1/4 BAR", "1/2 BAR", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
+static const char *const LFO_TARGET_NAMES[LFO_TARGET_COUNT] = {"CUTOFF", "PITCH", "LEVEL"};
+static const char *const LFO_SHAPE_NAMES[LFO_SHAPE_COUNT] = {"SINE", "TRIANGLE", "SAW UP", "SAW DOWN", "SQUARE", "RANDOM", "DRIFT"};
+#define LFO_PICTURE_MIDDLE 52                   /* the wave's picture: its middle line, and how far up and down DEPTH 100 goes */
+#define LFO_PICTURE_SWING 28
+
+/* a melodic track's LFO page: whose LFO the knobs change (the song's, or the pattern on the screen's own), a picture
+ * of its wave as deep as DEPTH (RANDOM and DRIFT: four cycles), and what REC does */
+static void draw_lfo(uint32_t pattern_index, int own, int editing, uint32_t shape, uint32_t depth)
+{
+    const uint32_t cycles = shape >= LFO_SHAPE_RANDOM ? 4u : 1u, width = 232u;
+    lfo_random_t random = {0x9E3779B9u, ~0u, 0, 0};   /* (the same picture each time) */
+    int32_t x, previous_y = LFO_PICTURE_MIDDLE;
+    char line[32];
+    cv_begin(240, SOUND_HEIGHT, C_BLACK);
+    with_letter(line, own ? "LFO: PATTERN @'S OWN" : "LFO: THE SONG'S", pattern_index);
+    cv_text(4, 0, &FONT_S, line, own ? C_ACCENT : C_LABEL);
+    cv_line(4, LFO_PICTURE_MIDDLE, 4 + (int32_t)width - 1, LFO_PICTURE_MIDDLE, C_STEP_EVEN_BEAT);
+    for (x = 0; x < (int32_t)width; x++) {
+        const uint32_t place_q16 = (uint32_t)x * cycles * 65536u / width;   /* (cycles in Q16: the phase and the cycle from the same number) */
+        const int32_t wave = lfo_wave(shape, place_q16 << 16, place_q16 >> 16, &random);
+        const int32_t y = LFO_PICTURE_MIDDLE - wave * (int32_t)depth * LFO_PICTURE_SWING / (32767 * (int32_t)LFO_DEPTH_MAX);
+        if (x) cv_line(4 + x - 1, previous_y, 4 + x, y, depth ? C_ACCENT : C_LABEL);
+        previous_y = y;
+    }
+    with_letter(line, own ? "REC: THE SONG'S AGAIN" : "REC: OWN FOR PATTERN @", pattern_index);
+    cv_text(4, 92, &FONT_S, editing ? line : "EDIT: CHANGE IT", C_LABEL);
+    cv_text(4, 108, &FONT_S, "LFO OR FX: BACK", C_LABEL);
+    cv_blit(0, BODY_TOP);
+}
+
 /* a track's mix page: a row per value, its name and a bar (PAN: a mark, the middle marked); on DRUMS a row per drum's
- * LEVEL, the selected drum's orange. The MIXER page: a row per track, dark where it is muted in the pattern */
+ * LEVEL, the selected drum's orange. The MIXER page: a row per track and the drone (a little lower), dark where it is
+ * muted in the pattern */
 #define MIX_ROW_HEIGHT 22u
+#define MIXER_ROW_HEIGHT 19u
 #define MIX_BAR_X 96
 #define MIX_BAR_WIDTH 140
 
-static void draw_mix_row(uint32_t row, const char *name, uint32_t value, int centred, int selected, int muted)
+static void draw_mix_row(uint32_t row, uint32_t row_height, const char *name, uint32_t value, int centred, int selected, int muted)
 {
     const uint16_t bar_colour = muted ? C_STEP_ODD_BEAT : selected ? C_ACCENT : C_HIT;
-    cv_begin(240, MIX_ROW_HEIGHT, C_BLACK);
+    cv_begin(240, row_height, C_BLACK);
     cv_text(4, 3, &FONT_S, name, selected ? C_ACCENT : muted ? C_STEP_ODD_BEAT : C_LABEL);
     cv_rect(MIX_BAR_X, 6, MIX_BAR_WIDTH, 10, C_STEP_EVEN_BEAT);
     if (centred) {
@@ -355,17 +389,86 @@ static void draw_mix_row(uint32_t row, const char *name, uint32_t value, int cen
         cv_rect(MIX_BAR_X + (int32_t)(value * (MIX_BAR_WIDTH - 4) / MIX_MAX), 4, 4, 14, bar_colour);
     } else
         cv_rect(MIX_BAR_X, 6, (int32_t)(value * MIX_BAR_WIDTH / MIX_MAX), 10, bar_colour);
-    cv_blit(0, BODY_TOP + row * MIX_ROW_HEIGHT);
+    cv_blit(0, BODY_TOP + row * row_height);
 }
 
 /* under the MIXER page's rows: that it is the pattern's own, and what the keys do */
 static void draw_mixer_hint(uint32_t pattern_index, int editing)
 {
     char hint[32];
-    with_letter(hint, editing ? "KEYS 1-5: MUTE IN @" : "PATTERN @ ONLY. EDIT: MIX", pattern_index);
-    cv_begin(240, BODY_HEIGHT - TRACK_COUNT * MIX_ROW_HEIGHT, C_BLACK);
-    cv_text(4, 6, &FONT_S, hint, C_LABEL);
-    cv_blit(0, BODY_TOP + TRACK_COUNT * MIX_ROW_HEIGHT);
+    with_letter(hint, editing ? "KEYS 1-6: MUTE IN @" : "PATTERN @ ONLY. EDIT: MIX", pattern_index);
+    cv_begin(240, BODY_HEIGHT - MIXER_TRACKS * MIXER_ROW_HEIGHT, C_BLACK);
+    cv_text(4, 4, &FONT_S, hint, C_LABEL);
+    cv_blit(0, BODY_TOP + MIXER_TRACKS * MIXER_ROW_HEIGHT);
+}
+
+static const char *const DRONE_NOTE_NAMES[DRONE_NOTE_MAX + 1u] = {"KEY 1", "KEY 2", "KEY 3", "CHORD 1", "CHORD 2", "CHORD 3"};
+
+/* JUICY's DRONE page: the note it holds (with the key), or that it follows the pad's chords; that it plays with the
+ * song, and where it goes per pattern */
+static void draw_drone(uint32_t note, int follows_chords, uint32_t level)
+{
+    char line[32] = "HOLDS ";
+    cv_begin(240, SOUND_HEIGHT, C_BLACK);
+    cv_text(4, 0, &FONT_S, "DRONE", C_LABEL);
+    if (follows_chords) cv_text(4, 20, &FONT_S, "THE ROOT OF THE PAD'S CHORD", C_WHITE);
+    else {
+        format_note(line + 6, note);
+        cv_text(4, 20, &FONT_L, line, C_WHITE);
+    }
+    cv_text(4, 64, &FONT_S, level ? "PLAYS WHILE THE SONG PLAYS" : "LEVEL 0: NO DRONE", level ? C_LABEL : C_ACCENT);
+    cv_text(4, 84, &FONT_S, "MIXER: ON OR OFF PER PATTERN", C_LABEL);
+    cv_blit(0, BODY_TOP);
+}
+
+static const char *const GEN_NOTES_NAMES[GEN_NOTES_MAX + 1u] = {"CHORD 1", "CHORD 2", "CHORD 3", "SCALE 1", "SCALE 2", "SCALE 3"};
+#define GEN_PICTURE_BOTTOM 84                   /* the loop's picture: its bottom line, and how high a step's note goes */
+#define GEN_PICTURE_HEIGHT 56
+
+/* ARP's GEN page: whether it plays (ARP's MODE is GEN), the loop as a bar a step (as high as its note, a rest a dot,
+ * the one that plays orange; past LENGTH dark), what REC does */
+static void draw_gen(const volatile uint16_t *values, uint32_t length, uint32_t density, uint32_t place, int on, int editing)
+{
+    uint32_t step;
+    cv_begin(240, SOUND_HEIGHT, C_BLACK);
+    cv_text(4, 0, &FONT_S, on ? "GEN: ARP PLAYS ITSELF" : "GEN IS OFF (ARP'S MODE)", on ? C_ACCENT : C_LABEL);
+    for (step = 0; step < GEN_LENGTH_MAX; step++) {
+        const int32_t x = 8 + (int32_t)step * 14, height = 4 + (int32_t)((values[step] >> 8) * (GEN_PICTURE_HEIGHT - 4u) >> 8);
+        const int rest = (values[step] & 255u) * GEN_PARAMETER_MAX >= density * 256u;
+        const uint16_t colour = step >= length ? C_STEP_EVEN_BEAT : step == place && on ? C_ACCENT : C_HIT;
+        if (rest || step >= length) cv_rect(x + 3, GEN_PICTURE_BOTTOM - 4, 5, 4, colour);
+        else cv_rect(x, GEN_PICTURE_BOTTOM - height, 11, height, colour);
+    }
+    cv_text(4, 92, &FONT_S, !editing ? "EDIT: CHANGE IT" : on ? "REC: OFF (MODE UP 1)" : "REC: ON (MODE GEN)", C_LABEL);
+    cv_text(4, 108, &FONT_S, "ARP OR FX: BACK", C_LABEL);
+    cv_blit(0, BODY_TOP);
+}
+
+static const char *const ECHO_TIME_NAMES[ECHO_TIMES] = {"1/16", "1/8", "1/8 DOT", "1/4", "1/4 DOT"};
+#define ECHO_PICTURE_MIDDLE 58                  /* the repeats' picture: the middle line, and how far the first one reaches */
+#define ECHO_PICTURE_HEIGHT 36
+
+/* JUICY's ECHO page: its repeats as bars, quieter one by one as FEEDBACK says, the left side's up and the right side's
+ * down (the other side's part of each as WIDTH says); where the sends are */
+static void draw_echo(uint32_t feedback, uint32_t width)
+{
+    const int32_t feedback_q8 = (int32_t)(feedback * ECHO_FEEDBACK_MAX / ECHO_PARAMETER_MAX);
+    int32_t amplitude = 32768, repeat;          /* (Q15) */
+    cv_begin(240, SOUND_HEIGHT, C_BLACK);
+    cv_text(4, 0, &FONT_S, "ECHO", C_LABEL);
+    cv_text(4, ECHO_PICTURE_MIDDLE - 20, &FONT_S, "L", C_LABEL);
+    cv_text(4, ECHO_PICTURE_MIDDLE + 4, &FONT_S, "R", C_LABEL);
+    cv_line(20, ECHO_PICTURE_MIDDLE, 235, ECHO_PICTURE_MIDDLE, C_STEP_EVEN_BEAT);
+    for (repeat = 0; repeat < 11 && amplitude > 400; repeat++) {
+        const int32_t x = 24 + repeat * 19, own = ECHO_PICTURE_HEIGHT * amplitude >> 15;
+        const int32_t other = own * (int32_t)(ECHO_PARAMETER_MAX - width) / (int32_t)ECHO_PARAMETER_MAX;
+        const int32_t up = repeat % 2 ? other : own, down = repeat % 2 ? own : other;   /* (the first on the left, then side to side) */
+        cv_rect(x, ECHO_PICTURE_MIDDLE - up, 9, up, C_ACCENT);
+        cv_rect(x, ECHO_PICTURE_MIDDLE + 1, 9, down, C_ACCENT);
+        amplitude = amplitude * feedback_q8 / 256;
+    }
+    cv_text(4, 104, &FONT_S, "MIX PAGES: HOW MUCH GOES IN", C_LABEL);
+    cv_blit(0, BODY_TOP);
 }
 
 /* row: of the page; hint: what to do (no drums yet), at the right of the name, or 0 */

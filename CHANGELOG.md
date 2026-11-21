@@ -3,6 +3,27 @@
 What changed in each version of Juicy. The version being worked on is in [VERSION](VERSION); a build that is not a
 release shows it on the start screen with `-dev` (`0.1-dev`).
 
+## Since 0.1 (not released yet)
+
+- Room for more: a song may now be twice as big (two flash sectors instead of one), for the sounds to come. Songs
+  saved by 0.1 (the eight places and the one you work on) do not load any more; the library and USER1 / USER2 stay.
+- An LFO for BASS, ARP, PAD and LEAD (the LFO button): RATE 1/4 bar to 16 bars in time with the song, DEPTH, TARGET
+  (cutoff, pitch, level) and SHAPE (sine, triangle, saw up and down, square, random, drift). It's the song's for every
+  pattern; REC on the LFO page gives a pattern its own. Library patterns of 0.1 do not load any more.
+- A second sound page, OSC (FX once more after the sound page): SUB (a square an octave down), OSC2 (a second
+  oscillator: detuned, an octave down, a fifth up, an octave up) and its LEVEL, and GLIDE; the pad has SUB and GLIDE
+  (its chords glide note by note). New sounds that use them: MOOG (bass), SEQ (arp), DEEP (pad), MONO (lead). USER1 and
+  USER2 kept by 0.1 do not load any more.
+- A drone (FX three times on JUICY: DRONE): LEVEL, NOTE (the key's root or the pad's chord's, in one of three
+  octaves), TONE and SWELL (it breathes by itself over 8 bars). It fades in on PLAY and out on STOP, and has a sixth
+  row in the pattern's MIXER (key 6 mutes it there).
+- The echo is stereo and has a page of its own (FX four times on JUICY: ECHO): TIME (1/16 to a dotted 1/4), REPEATS,
+  WIDTH (from the middle to a ping-pong) and TONE (each repeat darker). Songs start with a ping-pong, a little darker;
+  at WIDTH 0 and TONE 0 it is the echo as it was.
+- ARP can play itself: MODE GEN, on the GEN page (the ARP button on ARP; REC switches it on and off). A loop of up
+  to 16 notes from the chord or the key's scale that changes now and then: CHANGE, NOTES (CHORD or SCALE, 1 to 3
+  octaves), DENSITY, LENGTH; per pattern.
+
 ## 0.1 (not released yet)
 
 The first version: Juicy on the FM-1, tested on the device since 11.11.2026. Its identity is `FM-1_8860001` (a

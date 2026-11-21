@@ -18,6 +18,10 @@
 #define SYNTH_ACCENT_ENVELOPE 25u                /* ... and its envelope opens the filter this many steps of SYNTH_CUTOFF further */
 
 enum { SYNTH_WAVE_SAW, SYNTH_WAVE_SQUARE, SYNTH_WAVE_PULSE, SYNTH_WAVE_SAWS, SYNTH_WAVE_SOFT, SYNTH_WAVE_COUNT };
+/* OSC2, the second oscillator (the first one's wave; 2 SAWS: one sawtooth): a little higher, an octave down, a fifth up,
+ * an octave up */
+enum { SYNTH_OSC2_DETUNE, SYNTH_OSC2_OCTAVE_DOWN, SYNTH_OSC2_FIFTH, SYNTH_OSC2_OCTAVE_UP, SYNTH_OSC2_COUNT };
+#define SYNTH_OSC2_DETUNE_SHIFT 7u              /* DETUNE: higher by 1 / 2^this of the pitch (13 cents) */
 
 /* The filter's damping for RESONANCE 0..100, Q15: 0.8 (none to speak of) to 0.1 (it sings), in equal ratios each
  * half; 50 is 0.4. The pad's filter uses it too. */
@@ -60,6 +64,19 @@ static const uint16_t SYNTH_CUTOFF[SYNTH_PARAMETER_MAX + 1u] = {
     11119, 11637, 12179, 12746, 13339, 13958, 14605, 15281, 15987, 16724, 17493, 18296,
     19133, 20007, 20917, 21865, 22853};
 
+/* How far a gliding note goes each 32 frames for GLIDE 0..100, of what is left, Q16: 0 no glide, then a time
+ * constant of 5 ms to 1.5 s in equal ratios */
+static const uint16_t SYNTH_GLIDE_RATE[SYNTH_PARAMETER_MAX + 1u] = {
+    0, 8853, 8391, 7951, 7532, 7134, 6756, 6397, 6056, 5732, 5425, 5134,
+    4857, 4595, 4346, 4111, 3888, 3676, 3476, 3286, 3107, 2937, 2776, 2624,
+    2480, 2343, 2214, 2092, 1977, 1868, 1765, 1667, 1575, 1488, 1405, 1328,
+    1254, 1184, 1119, 1057, 998, 942, 890, 840, 794, 750, 708, 668,
+    631, 596, 563, 531, 502, 474, 447, 422, 399, 377, 355, 336,
+    317, 299, 282, 267, 252, 238, 224, 212, 200, 189, 178, 168,
+    159, 150, 142, 134, 126, 119, 113, 106, 100, 95, 89, 84,
+    80, 75, 71, 67, 63, 60, 56, 53, 50, 47, 45, 42,
+    40, 38, 36, 34, 32};
+
 /* How much of the envelope goes each 32 frames for DECAY 0..100: a time constant of 30 ms to 2 s in equal ratios,
  * as 32 * 65536 / (seconds * 44100). */
 static const uint16_t SYNTH_DECAY_RATE[SYNTH_PARAMETER_MAX + 1u] = {
@@ -80,18 +97,25 @@ typedef struct {                                /* what makes a sound its own */
     uint32_t attack_rate;                       /* SYNTH_ATTACK_RATE: 0 the note is there at once */
     uint32_t envelope_amount;                   /* the envelope at full opens the filter by this many steps of SYNTH_CUTOFF */
     uint32_t release_rate;                      /* a note let go falls at this rate (as SYNTH_DECAY_RATE); 0: it rings on as DECAY says */
+    int32_t osc1_weight, sub_weight, osc2_weight;   /* Q15, how much of each goes in: with SUB and OSC2 off, only the first (sub_weight and osc2_weight 0) */
+    uint32_t osc2_interval;                     /* SYNTH_OSC2_* */
+    uint32_t glide_rate;                        /* SYNTH_GLIDE_RATE: 0 a note is at its pitch at once */
 } synth_shape_t;
 
 typedef struct {
-    uint32_t phase, phase_detuned, phase_step, held, attacking, accented, control_frames_left;
+    uint32_t phase, phase_detuned, phase_sub, phase_osc2, phase_step, phase_step_target, held, attacking, accented, control_frames_left;
     int32_t envelope, amplitude_target, amplitude, filter_frequency, low, band;
 } synth_voice_t;
 
+static int synth_quiet(const synth_voice_t *voice) { return !voice->attacking && !voice->envelope && !voice->amplitude; }
+
 static void synth_note_on(synth_voice_t *voice, const synth_shape_t *shape, uint32_t note, int accented)
 {
-    voice->phase_step = note_phase_step(note);
+    voice->phase_step_target = note_phase_step(note);
+    if (!shape->glide_rate || synth_quiet(voice)) voice->phase_step = voice->phase_step_target;   /* (gliding: from where the note before is) */
     voice->accented = accented != 0;
     voice->phase_detuned = voice->phase + 0x40000000u;   /* a quarter turn apart: every note starts equally loud */
+    voice->phase_osc2 = voice->phase + 0x40000000u;
     voice->attacking = shape->attack_rate != 0u;  /* (an attack rises from where the envelope is: no click) */
     if (!voice->attacking) voice->envelope = SYNTH_ENVELOPE_FULL;
     voice->held = 1;
@@ -100,17 +124,57 @@ static void synth_note_on(synth_voice_t *voice, const synth_shape_t *shape, uint
 
 static void synth_note_off(synth_voice_t *voice) { voice->held = 0; }
 
-static int synth_quiet(const synth_voice_t *voice) { return !voice->attacking && !voice->envelope && !voice->amplitude; }
+#define SYNTH_PITCH_UNCHANGED (1u << 16)        /* a pitch factor (Q16) that leaves the note as it is */
 
-/* adds to out (mono, a value a frame); cutoff and decay 0..SYNTH_PARAMETER_MAX */
-static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32_t *out, uint32_t frame_count,
-                         uint32_t cutoff, uint32_t decay)
+static uint32_t synth_pitched(uint32_t phase_step, uint32_t pitch_q16)   /* a phase step times the LFO's pitch factor */
 {
+    return pitch_q16 == SYNTH_PITCH_UNCHANGED ? phase_step : (uint32_t)(((uint64_t)phase_step * pitch_q16) >> 16);
+}
+
+static uint32_t synth_glided(uint32_t phase_step, uint32_t target, uint32_t glide_rate)   /* a control block's glide towards target */
+{
+    const int32_t left = (int32_t)(target - phase_step), moved = (int32_t)(((int64_t)left * glide_rate) >> 16);
+    return moved ? phase_step + (uint32_t)moved : target;   /* (too close to move: there) */
+}
+
+static int32_t synth_wave(uint32_t wave, uint32_t phase)   /* one oscillator's wave at phase: -8192..8191 (2 SAWS: one sawtooth) */
+{
+    switch (wave) {
+    case SYNTH_WAVE_SQUARE: return phase < SYNTH_SQUARE_WIDTH ? 8191 : -8192;
+    case SYNTH_WAVE_PULSE: return phase < SYNTH_PULSE_WIDTH ? 8191 : -8192;
+    case SYNTH_WAVE_SOFT: {                     /* the triangle: the phase folded */
+        int32_t folded = (int32_t)phase >> 17;
+        return (folded < 0 ? -folded : folded) - 8192;
+    }
+    default: return (int32_t)phase >> 18;       /* the sawtooth: the phase itself */
+    }
+}
+
+static int32_t synth_cutoff_frequency(uint32_t cutoff_q8)   /* SYNTH_CUTOFF, also between its steps: cutoff_q8 0..SYNTH_PARAMETER_MAX << 8 */
+{
+    const uint32_t step = cutoff_q8 >> 8;
+    const int32_t fraction = (int32_t)(cutoff_q8 & 255u);
+    if (step >= SYNTH_PARAMETER_MAX) return SYNTH_CUTOFF[SYNTH_PARAMETER_MAX];
+    return SYNTH_CUTOFF[step] + (((SYNTH_CUTOFF[step + 1u] - SYNTH_CUTOFF[step]) * fraction) >> 8);
+}
+
+/* adds to out (mono, a value a frame); cutoff_q8 0..SYNTH_PARAMETER_MAX << 8 (in 1/256 of a step), decay
+ * 0..SYNTH_PARAMETER_MAX; the note's pitch times pitch_q16 (the LFO's). SUB (a square an octave down) and OSC2 come
+ * in where the shape says so */
+static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32_t *out, uint32_t frame_count,
+                         uint32_t cutoff_q8, uint32_t decay, uint32_t pitch_q16)
+{
+    const int layered = shape->sub_weight || shape->osc2_weight;
+    uint32_t phase_step = synth_pitched(voice->phase_step, pitch_q16), osc2_step = 0;
     if (synth_quiet(voice)) return;
     while (frame_count) {
         uint32_t run_frames, i;
         if (!voice->control_frames_left) {
             uint32_t cutoff_now;
+            if (voice->phase_step != voice->phase_step_target) {   /* GLIDE: on towards the note */
+                voice->phase_step = synth_glided(voice->phase_step, voice->phase_step_target, shape->glide_rate);
+                phase_step = synth_pitched(voice->phase_step, pitch_q16);
+            }
             if (voice->attacking && voice->held) {
                 voice->envelope += (int32_t)shape->attack_rate;
                 if (voice->envelope >= SYNTH_ENVELOPE_FULL) {
@@ -122,12 +186,16 @@ static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32
                 voice->envelope -= (voice->envelope >> 16) * (voice->held || !shape->release_rate ? SYNTH_DECAY_RATE[decay] : shape->release_rate);
                 if (voice->envelope < 65536) voice->envelope = 0;
             }
-            cutoff_now = cutoff + ((((uint32_t)voice->envelope >> 16) * (shape->envelope_amount + (voice->accented ? SYNTH_ACCENT_ENVELOPE : 0u))) >> 14);
-            voice->filter_frequency = SYNTH_CUTOFF[cutoff_now > SYNTH_PARAMETER_MAX ? SYNTH_PARAMETER_MAX : cutoff_now];
+            cutoff_now = cutoff_q8 + (((((uint32_t)voice->envelope >> 16) * (shape->envelope_amount + (voice->accented ? SYNTH_ACCENT_ENVELOPE : 0u))) >> 14) << 8);
+            voice->filter_frequency = synth_cutoff_frequency(cutoff_now);
             voice->amplitude_target = voice->accented ? ((voice->envelope >> 15) * SYNTH_ACCENT_LOUDNESS_Q8) >> 8 : voice->envelope >> 15;
             voice->control_frames_left = SYNTH_CONTROL_FRAMES;
         }
         run_frames = frame_count < voice->control_frames_left ? frame_count : voice->control_frames_left;
+        if (layered)
+            osc2_step = shape->osc2_interval == SYNTH_OSC2_DETUNE ? phase_step + (phase_step >> SYNTH_OSC2_DETUNE_SHIFT)
+                      : shape->osc2_interval == SYNTH_OSC2_OCTAVE_DOWN ? phase_step >> 1
+                      : shape->osc2_interval == SYNTH_OSC2_FIFTH ? phase_step + (phase_step >> 1) : phase_step << 1;
         for (i = 0; i < run_frames; i++) {
             int32_t wave, high, sample;
             if (voice->amplitude < voice->amplitude_target) {
@@ -137,21 +205,18 @@ static void synth_render(synth_voice_t *voice, const synth_shape_t *shape, int32
                 voice->amplitude -= SYNTH_AMPLITUDE_SLEW;
                 if (voice->amplitude < voice->amplitude_target) voice->amplitude = voice->amplitude_target;
             }
-            voice->phase += voice->phase_step;
+            voice->phase += phase_step;
             voice->low += (voice->filter_frequency * voice->band) >> 15;
-            switch (shape->wave) {
-            case SYNTH_WAVE_SQUARE: wave = voice->phase < SYNTH_SQUARE_WIDTH ? 8191 : -8192; break;
-            case SYNTH_WAVE_PULSE: wave = voice->phase < SYNTH_PULSE_WIDTH ? 8191 : -8192; break;
-            case SYNTH_WAVE_SOFT: {                 /* the triangle: the phase folded */
-                int32_t folded = (int32_t)voice->phase >> 17;
-                wave = (folded < 0 ? -folded : folded) - 8192;
-                break;
-            }
-            default: wave = (int32_t)voice->phase >> 18;   /* the sawtooth: the phase itself */
-            }
+            wave = synth_wave(shape->wave, voice->phase);
             if (shape->wave == SYNTH_WAVE_SAWS) {
-                voice->phase_detuned += voice->phase_step + (voice->phase_step >> SYNTH_SAWS_DETUNE_SHIFT);
+                voice->phase_detuned += phase_step + (phase_step >> SYNTH_SAWS_DETUNE_SHIFT);
                 wave = (wave + ((int32_t)voice->phase_detuned >> 18)) >> 1;
+            }
+            if (layered) {                      /* SUB and OSC2 with it, together as loud as the first alone */
+                voice->phase_sub += phase_step >> 1;
+                voice->phase_osc2 += osc2_step;
+                wave = (wave * shape->osc1_weight + (voice->phase_sub < 0x80000000u ? 8191 : -8192) * shape->sub_weight
+                        + synth_wave(shape->wave, voice->phase_osc2) * shape->osc2_weight) >> 15;
             }
             high = wave - voice->low - ((shape->damping * voice->band) >> 15);
             voice->band += (voice->filter_frequency * high) >> 15;

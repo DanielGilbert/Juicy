@@ -3,20 +3,44 @@
  * The main loop and the ISR share the variables below, each written by one side only (docs/RULES.md).
  * juicy.c includes it after song.c. */
 
+static uint32_t square_root(uint32_t value)     /* rounded down */
+{
+    uint32_t root = 0, bit = 1u << 30;
+    while (bit > value) bit >>= 2;
+    for (; bit; bit >>= 2) {
+        if (value >= root + bit) {
+            value -= root + bit;
+            root = (root >> 1) + bit;
+        } else root >>= 1;
+    }
+    return root;
+}
+
 static void melodic_shape(uint32_t melodic, synth_shape_t *shape)   /* (the audio ISR's) the synth as the sound says */
 {
     const volatile uint8_t *knobs = song.sounds[melodic];
-    shape->wave = knobs[0];
-    shape->gain = MELODIC[melodic].gains[knobs[0]];
-    shape->damping = SYNTH_DAMPING[knobs[1]];
-    shape->attack_rate = SYNTH_ATTACK_RATE[knobs[2]];
-    shape->envelope_amount = knobs[3];
+    const uint32_t sub = knobs[SOUND_KNOB_SUB], osc2 = knobs[SOUND_KNOB_OSC2_LEVEL];
+    shape->wave = knobs[SOUND_KNOB_WAVE];
+    shape->gain = MELODIC[melodic].gains[knobs[SOUND_KNOB_WAVE]];
+    shape->damping = SYNTH_DAMPING[knobs[SOUND_KNOB_RESONANCE]];
+    shape->attack_rate = SYNTH_ATTACK_RATE[knobs[SOUND_KNOB_ATTACK]];
+    shape->envelope_amount = knobs[SOUND_KNOB_ENVELOPE];
     shape->release_rate = MELODIC[melodic].release_rate;
+    shape->osc2_interval = knobs[SOUND_KNOB_OSC2];
+    shape->glide_rate = SYNTH_GLIDE_RATE[knobs[SOUND_KNOB_GLIDE]];
+    shape->osc1_weight = 32768;
+    shape->sub_weight = shape->osc2_weight = 0;
+    if (sub || osc2) {                          /* the three together as loud (RMS) as the first alone: each over sqrt(1 + sub^2 + osc2^2) */
+        shape->osc1_weight = (int32_t)(32768u * 1600u / square_root((10000u + sub * sub + osc2 * osc2) << 8));   /* (100 * 16: the root of << 8) */
+        shape->sub_weight = shape->osc1_weight * (int32_t)sub / 100;
+        shape->osc2_weight = shape->osc1_weight * (int32_t)osc2 / 100;
+    }
 }
 
 static void melodic_note_on(uint32_t melodic, uint32_t value, int accented)   /* value: as in song.notes; (the pad: no accents) */
 {
-    if (melodic == MELODIC_PAD) pad_chord_on(value & NOTE_MASK, value >> CHORD_SHIFT, song.sounds[MELODIC_PAD][0]);
+    if (melodic == MELODIC_PAD)
+        pad_chord_on(value & NOTE_MASK, value >> CHORD_SHIFT, song.sounds[MELODIC_PAD][0], SYNTH_GLIDE_RATE[song.sounds[MELODIC_PAD][SOUND_KNOB_GLIDE]]);
     else {
         synth_shape_t shape;
         melodic_shape(melodic, &shape);
@@ -57,6 +81,61 @@ static volatile uint32_t play_starts;           /* one more: what plays starts o
 static volatile uint32_t steps_since_play;      /* the steps started since PLAY (the ISR writes) ... */
 static volatile uint32_t step_started_ms;       /* ... and when the last of them did, in fm1_ms (the ISR writes) */
 
+/* ---- the LFOs (lfo.c): where they are, in step with the song. Playing, each step puts them where it is (counted from
+ * PLAY); in between, and while stopped, they move on at the tempo */
+static uint32_t lfo_position;                   /* (the ISR's) Q24 steps into a lap of LFO_LAP_STEPS (it wraps: a lap) ... */
+static uint32_t lfo_laps;                       /* ... and the laps */
+static lfo_random_t lfo_randoms[MELODIC_COUNT] = {{0x9E3779B9u, ~0u, 0, 0}, {0x3C6EF372u, ~0u, 0, 0},
+                                                  {0xDAA66D2Bu, ~0u, 0, 0}, {0x78DDE6E4u, ~0u, 0, 0}};
+
+typedef struct {                                /* what a melodic track's LFO does to it now */
+    uint32_t cutoff_q8;                         /* its CUTOFF (in 1/256 of a step) */
+    uint32_t pitch_q16;                         /* its notes' pitch times this */
+    int32_t gain;                               /* its loudness, Q12 */
+} lfo_effect_t;
+
+static void lfo_effect(uint32_t melodic, lfo_effect_t *effect)   /* (the audio ISR's) */
+{
+    const volatile lfo_t *lfo = lfo_of(&song.patterns[playing ? playing_pattern : loop_pattern], melodic);
+    const uint32_t rate = lfo->rate, target = lfo->target;
+    const int32_t depth = lfo->depth;
+    int32_t wave, cutoff_q8;
+    effect->cutoff_q8 = song.cutoff[melodic] << 8;
+    effect->pitch_q16 = SYNTH_PITCH_UNCHANGED;
+    effect->gain = 4096;
+    if (!depth) return;
+    wave = lfo_wave(lfo->shape, lfo_position << (6u - rate), lfo_laps * (64u >> rate) + (lfo_position >> 26 >> rate), &lfo_randoms[melodic]);
+    if (target == LFO_TARGET_CUTOFF) {          /* (wave * DEPTH / 256: 50 steps at the most, in 1/256 of one) */
+        cutoff_q8 = (int32_t)effect->cutoff_q8 + wave * depth / (int32_t)(32767u * LFO_DEPTH_MAX / (LFO_CUTOFF_STEPS * 256u));
+        effect->cutoff_q8 = cutoff_q8 < 0 ? 0u : cutoff_q8 > (int32_t)(SYNTH_PARAMETER_MAX << 8) ? SYNTH_PARAMETER_MAX << 8 : (uint32_t)cutoff_q8;
+    } else if (target == LFO_TARGET_PITCH)      /* (DEPTH squared: fine steps where it is small) */
+        effect->pitch_q16 = lfo_pitch_q16(wave * depth * depth / (int32_t)(32767u * LFO_DEPTH_MAX * LFO_DEPTH_MAX / (LFO_PITCH_SEMITONES * 256u)));
+    else {                                      /* LEVEL: full at the wave's top, down by DEPTH % at its bottom */
+        effect->gain = 4096 - (32767 - wave) * depth / (int32_t)(2u * 32767u * LFO_DEPTH_MAX / 4096u);
+        if (effect->gain < 0) effect->gain = 0;
+    }
+}
+
+/* ---- the drone (drone.c): its note, TONE and SWELL (it breathes along a DRIFT wave of the LFOs' over 8 bars) */
+#define DRONE_SWELL_RATE 5u                     /* (a cycle of 4 << this steps) */
+#define DRONE_TONE_STEPS 90u                    /* TONE 100: the filter at CUTOFF 90 */
+#define DRONE_SWELL_STEPS 15u                   /* SWELL 100: the filter up and down by 15 steps, the level down to nothing */
+#define DRONE_REVERB_SEND 60u                   /* of MIX_MAX: how much of it goes into the reverb (none into the echo) */
+static uint32_t drone_chord_root = 12u;         /* (the ISR's) the root of the pad's last chord, 0..11; 12: none yet */
+static lfo_random_t drone_random = {0x2545F491u, ~0u, 0, 0};
+
+static void drone_effect(lfo_effect_t *effect)  /* (the audio ISR's) its filter and the swell's level now */
+{
+    const int32_t swell = song.drone_swell;
+    const int32_t wave = swell ? lfo_wave(LFO_SHAPE_DRIFT, lfo_position << (6u - DRONE_SWELL_RATE),
+                                          lfo_laps * (64u >> DRONE_SWELL_RATE) + (lfo_position >> 26 >> DRONE_SWELL_RATE), &drone_random) : 0;
+    const int32_t cutoff_q8 = (int32_t)(song.drone_tone * DRONE_TONE_STEPS * 256u / SYNTH_PARAMETER_MAX)
+                              + wave * swell / (int32_t)(32767u * SYNTH_PARAMETER_MAX / (DRONE_SWELL_STEPS * 256u));
+    effect->cutoff_q8 = cutoff_q8 < 0 ? 0u : (uint32_t)cutoff_q8;
+    effect->gain = 4096 - (32767 - wave) * swell / (int32_t)(2u * 32767u * SYNTH_PARAMETER_MAX / 4096u);
+    if (effect->gain < 0) effect->gain = 0;
+}
+
 /* the mixer: each track (mono) at its LEVEL and PAN into out, and from there into the echo and the reverb; the echo
  * comes back into both. Gains are Q12 (4096: as it is), so the mix as it was made adds up to the same numbers.
  * Playing, each track is also at its level in the playing pattern's own mix (stopped: as it is); from one pattern to
@@ -66,32 +145,44 @@ static void render(int32_t *out, uint32_t frame_count)   /* at most BLOCK_FRAMES
 {
     static int32_t track_out[BLOCK_FRAMES_MAX], echo_send[BLOCK_FRAMES_MAX], reverb_send[BLOCK_FRAMES_MAX];
     static int32_t echo_return[2u * BLOCK_FRAMES_MAX];   /* (L R L R ...) */
-    static int32_t pattern_gains[1u + MELODIC_COUNT] = {4096, 4096, 4096, 4096, 4096};   /* each track's in the pattern's mix, as it glides */
+    static int32_t pattern_gains[MIXER_TRACKS] = {4096, 4096, 4096, 4096, 4096, 4096};   /* each track's in the pattern's mix, as it glides */
     uint32_t track, i;
     memset(echo_send, 0, frame_count * sizeof echo_send[0]);
     memset(reverb_send, 0, frame_count * sizeof reverb_send[0]);
     memset(echo_return, 0, 2u * frame_count * sizeof echo_return[0]);
-    for (track = 0; track < 1u + MELODIC_COUNT; track++) {   /* the drums, then the melodic tracks */
-        const uint32_t melodic = track - 1u, pan = song.pans[track];
-        const int32_t level = track ? (int32_t)(song.levels[melodic] * 4096u / MIX_MAX) : 4096;   /* (the drums': each drum's) */
+    for (track = 0; track < MIXER_TRACKS; track++) {   /* the drums, the melodic tracks, the drone (in the middle, no echo) */
+        const int drone_track = track == DRONE_MIXER_TRACK;
+        const uint32_t melodic = track - 1u, pan = drone_track ? MIX_MAX / 2u : song.pans[track];
+        const int32_t level = drone_track ? (int32_t)(song.drone_level * 4096u / MIX_MAX)
+                            : track ? (int32_t)(song.levels[melodic] * 4096u / MIX_MAX) : 4096;   /* (the drums': each drum's) */
         const int32_t left = pan <= MIX_MAX / 2u ? 4096 : (int32_t)((MIX_MAX - pan) * 4096u / (MIX_MAX / 2u));
         const int32_t right = pan >= MIX_MAX / 2u ? 4096 : (int32_t)(pan * 4096u / (MIX_MAX / 2u));
-        const int32_t echo_gain = (int32_t)((track ? song.echo[melodic] : song.drum_echo) * 5u);   /* of 512: echo / 100, near enough */
-        const int32_t reverb_gain = (int32_t)(song.reverb_sends[track] * 4096u / MIX_MAX);
-        const int32_t pattern_gain_wanted = playing ? (int32_t)(song.patterns[playing_pattern].mixer_levels[track] * 4096u / MIX_MAX) : 4096;
-        int32_t pattern_gain = pattern_gains[track];
+        const int32_t echo_gain = drone_track ? 0 : (int32_t)((track ? song.echo[melodic] : song.drum_echo) * 5u);   /* of 512: echo / 100, near enough */
+        const int32_t reverb_gain = (int32_t)((drone_track ? DRONE_REVERB_SEND : song.reverb_sends[track]) * 4096u / MIX_MAX);
+        const volatile pattern_t *const playing_one = &song.patterns[playing_pattern];
+        lfo_effect_t lfo = {0, SYNTH_PITCH_UNCHANGED, 4096};   /* (the drums have none) */
+        int32_t pattern_gain_wanted, pattern_gain = pattern_gains[track];
+        if (drone_track && !level) continue;    /* (no drone: nothing to do) */
+        if (drone_track) drone_effect(&lfo);
+        else if (track) lfo_effect(melodic, &lfo);
+        pattern_gain_wanted = (drone_track ? (playing_one->mixer_mutes >> track & 1u ? 0 : (int32_t)(playing_one->mixer_levels[track] * 4096u / MIX_MAX))
+                               : !playing ? 4096 : (int32_t)(playing_one->mixer_levels[track] * 4096u / MIX_MAX))   /* (the drone fades out in the last
+                                                   pattern's mix; the tracks' mutes are on their steps) */
+                              * lfo.gain >> 12;   /* (the LFO's LEVEL glides with it) */
         memset(track_out, 0, frame_count * sizeof track_out[0]);
-        if (!track) {
+        if (drone_track) drone_render(track_out, frame_count, playing != 0, drone_note_for(drone_chord_root), lfo.cutoff_q8);
+        else if (!track) {
             int32_t drum_levels[DRUM_COUNT];
             uint32_t drum;
             for (drum = 0; drum < DRUM_COUNT; drum++) drum_levels[drum] = (int32_t)(song.drum_levels[drum] * 4096u / MIX_MAX);
             drums_render(track_out, frame_count, drum_levels);
         } else if (melodic == MELODIC_PAD)
-            pad_render(track_out, frame_count, song.cutoff[melodic], song.sounds[melodic][1], song.sounds[melodic][2], song.sounds[melodic][3]);
+            pad_render(track_out, frame_count, lfo.cutoff_q8, song.sounds[melodic][1], song.sounds[melodic][2], song.sounds[melodic][3],
+                       song.sounds[melodic][SOUND_KNOB_SUB], lfo.pitch_q16);
         else {
             synth_shape_t shape;
             melodic_shape(melodic, &shape);
-            synth_render(&melodic_voices[melodic], &shape, track_out, frame_count, song.cutoff[melodic], song.decay[melodic]);
+            synth_render(&melodic_voices[melodic], &shape, track_out, frame_count, lfo.cutoff_q8, song.decay[melodic], lfo.pitch_q16);
         }
         for (i = 0; i < frame_count; i++) {
             int32_t sample;
@@ -106,14 +197,21 @@ static void render(int32_t *out, uint32_t frame_count)   /* at most BLOCK_FRAMES
         }
         pattern_gains[track] = pattern_gain;
     }
-    echo_render(echo_return, echo_send, frame_count, ECHO_STEPS * frames_per_step_q8 >> 8);
-    for (i = 0; i < frame_count; i++) {         /* the echo: heard, and into the reverb */
+    echo_render(echo_return, echo_send, frame_count, ECHO_TIME_STEPS[song.echo_time] * frames_per_step_q8 >> 8,
+                song.echo_feedback, song.echo_width, song.echo_tone);
+    for (i = 0; i < frame_count; i++) {         /* the echo: heard, and into the reverb (both sides: in the middle, as it was, they are the same) */
         out[2u * i] += echo_return[2u * i];
         out[2u * i + 1u] += echo_return[2u * i + 1u];
-        reverb_send[i] += echo_return[2u * i];
+        reverb_send[i] += (echo_return[2u * i] + echo_return[2u * i + 1u]) >> 1;
     }
     reverb_render(out, reverb_send, frame_count, song.reverb);
     limiter_render(out, frame_count);
+    {                                           /* the LFOs move on by these frames, at the tempo (2^32 / frames_per_step_q8: Q24 steps a frame) */
+        const uint32_t position_before = lfo_position;
+        const uint32_t frame_steps = frames_per_step_q8;   /* (0 before the main loop's first pass) */
+        if (frame_steps) lfo_position += frame_count * (0xFFFFFFFFu / frame_steps);
+        if (lfo_position < position_before) lfo_laps++;
+    }
 }
 
 /* ARP's note for its hit number position over chord (as on the pad's track): the chord's notes from its root
@@ -134,6 +232,46 @@ static uint32_t arp_note(uint32_t chord, uint32_t mode, uint32_t position)
         index = (random_state >> 16) % count;
     }
     return root + index / note_count * 12u + PAD_CHORDS[chord_type].intervals[index % note_count];
+}
+
+/* ---- GEN, ARP's MODE that plays itself: a loop of up to GEN_LENGTH_MAX random values, counted from PLAY (so a
+ * short loop drifts against the bars). Each time a step comes round, CHANGE is how likely its value is a new one. A
+ * value's low byte over DENSITY is a rest, its high byte the note among NOTES' (the chord's, from its root up, as MODE
+ * UP; or the key's scale) */
+static volatile uint16_t gen_values[GEN_LENGTH_MAX];   /* (the ISR writes; the GEN page shows them) */
+static volatile uint32_t gen_place = GEN_LENGTH_MAX;   /* the step of the loop that played last, GEN_LENGTH_MAX: none yet (the ISR writes) */
+static uint32_t gen_random_state = 0x6C078965u, gen_filled;
+
+static uint32_t gen_random(void)                /* 0..65535 */
+{
+    gen_random_state = gen_random_state * 1664525u + 1013904223u;
+    return gen_random_state >> 16;
+}
+
+static uint32_t gen_note(const volatile pattern_t *pattern, uint32_t chord, uint32_t step_count)   /* MIDI, 0: a rest */
+{
+    const uint32_t place = step_count % pattern->gen_length, octaves = pattern->gen_notes % GEN_OCTAVES + 1u;
+    uint32_t value, index;
+    if (!gen_filled) {                          /* (the first time: a loop of random values) */
+        for (index = 0; index < GEN_LENGTH_MAX; index++) gen_values[index] = (uint16_t)gen_random();
+        gen_filled = 1;
+    }
+    if (gen_random() % GEN_PARAMETER_MAX < pattern->gen_change) gen_values[place] = (uint16_t)gen_random();
+    gen_place = place;
+    value = gen_values[place];
+    if ((value & 255u) * GEN_PARAMETER_MAX >= pattern->gen_density * 256u) return 0;
+    if (pattern->gen_notes < GEN_NOTES_SCALE) {   /* the chord's notes over the octaves (none: silent, as ARP) */
+        const uint32_t count = PAD_CHORDS[chord >> CHORD_SHIFT].note_count * octaves;
+        return chord ? arp_note(chord, ARP_MODE(ARP_ORDER_UP, octaves), (value >> 8) * count >> 8) : 0u;
+    } else {                                    /* the key's scale from its root (at ARP's lowest note or above) */
+        const uint32_t key = song_key(), scale = KEY_SCALES[key == KEY_OFF ? 0u : (key - 1u) & 1u];
+        const uint32_t step_in_scale = (value >> 8) * (7u * octaves) >> 8;
+        uint32_t note = key == KEY_OFF ? 9u : (key - 1u) / 2u, interval = 0, found = 0;
+        while (note < MELODIC[MELODIC_ARP].note_lowest) note += 12u;
+        for (interval = 0; interval < 12u; interval++)   /* (the scale's step_in_scale % 7-th note) */
+            if (scale >> interval & 1u && found++ == step_in_scale % 7u) break;
+        return note + step_in_scale / 7u * 12u + interval;
+    }
 }
 
 static void app_audio(int32_t *out, uint32_t frame_count)
@@ -223,6 +361,8 @@ static void app_audio(int32_t *out, uint32_t frame_count)
             next_step++;
             step_started_ms = fm1_ms + frames_done * 1000u / FS;
             steps_since_play = steps_since_play + 1u;
+            lfo_position = (steps_since_play - 1u) % LFO_LAP_STEPS << 24;   /* the LFOs where this step is */
+            lfo_laps = (steps_since_play - 1u) / LFO_LAP_STEPS;
             frames_to_step_q8 += frames_per_step_q8;   /* (the fraction carries over: the tempo does not drift) */
         }
         if (step_waits && !swing_frames_left) { /* the step sounds: on its start, a swung one later (always before the next starts) */
@@ -238,13 +378,16 @@ static void app_audio(int32_t *out, uint32_t frame_count)
                 const uint32_t chord = step_value(pattern->notes[MELODIC_PAD][pad_bar], pattern->gates[MELODIC_PAD][pad_bar], MELODIC_PAD, step);
                 if (chord) {
                     arp_chord = chord;
+                    drone_chord_root = (chord & NOTE_MASK) % 12u;
                     arp_position = 0;
                 }
             }
             for (melodic = 0; melodic < MELODIC_COUNT; melodic++) {   /* a note lasts its step and its ties: an empty step lets it go */
                 const uint32_t track_bar = bar % pattern->bar_totals[1u + melodic];
-                const uint32_t gate = melodic == MELODIC_PAD ? 0u : note_gate(pattern->gates[melodic][track_bar], step);   /* (the pad's holds its chord) */
-                uint32_t note = step_value(pattern->notes[melodic][track_bar], pattern->gates[melodic][track_bar], melodic, step);
+                const int generated = melodic == MELODIC_ARP && pattern->arp_mode == ARP_MODE_GEN;   /* (GEN: not its hits, a note of the loop's on each step) */
+                const uint32_t gate = melodic == MELODIC_PAD || generated ? 0u : note_gate(pattern->gates[melodic][track_bar], step);   /* (the pad's holds its chord) */
+                uint32_t note = generated ? gen_note(pattern, audition_frames_left[MELODIC_PAD] ? audition_notes[MELODIC_PAD] : arp_chord, steps_since_play - 1u)
+                                          : step_value(pattern->notes[melodic][track_bar], pattern->gates[melodic][track_bar], melodic, step);
                 if (muted >> (1u + melodic) & 1u) note = 0;   /* muted: as if the steps were empty */
                 if (melodic == MELODIC_PAD) {   /* but the pad holds its chord until the next one */
                     if (!note && muted >> (1u + melodic) & 1u && pad_pattern_value) {   /* (muted: not that one either) */
@@ -255,9 +398,9 @@ static void app_audio(int32_t *out, uint32_t frame_count)
                     pad_pattern_value = note;
                 } else if (note & NOTE_TIE)
                     continue;                   /* tied: the note before goes on */
-                if (note && note_held[melodic] && live_starts[melodic] == 1u + track_bar * STEPS_PER_BAR + step && pattern_now == loop_pattern)
+                if (note && !generated && note_held[melodic] && live_starts[melodic] == 1u + track_bar * STEPS_PER_BAR + step && pattern_now == loop_pattern)
                     continue;                   /* recorded while playing, its key still down: it sounds already */
-                if (melodic == MELODIC_ARP && note) {   /* a hit: the chord's next note (the one the pad's keys play, if they do; none: silent) */
+                if (melodic == MELODIC_ARP && note && !generated) {   /* a hit: the chord's next note (the one the pad's keys play, if they do; none: silent) */
                     const uint32_t chord = audition_frames_left[MELODIC_PAD] ? audition_notes[MELODIC_PAD] : arp_chord;
                     if (chord != arp_chord_used) {
                         arp_chord_used = chord;
@@ -266,7 +409,7 @@ static void app_audio(int32_t *out, uint32_t frame_count)
                     note = !chord ? 0u : pattern->arp_mode == ARP_MODE_TONES ? arp_tone_note(chord, note)   /* (TONES: the hit's own tone) */
                                                                              : arp_note(chord, pattern->arp_mode, arp_position++);
                 }
-                if (note) melodic_note_on(melodic, note, pattern->accents[1u + melodic][track_bar] >> step & 1u);
+                if (note) melodic_note_on(melodic, note, !generated && pattern->accents[1u + melodic][track_bar] >> step & 1u);
                 else melodic_note_off(melodic);
                 audition_frames_left[melodic] = 0;
                 gate_frames_left[melodic] = note ? gate * frames_per_step_q8 / 10u >> 8 : 0u;

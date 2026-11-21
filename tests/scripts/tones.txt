@@ -60,9 +60,10 @@
 5950 keys 0
 6000 enc 2 1
 6200 shot
-# FX twice: ARP's mix page, KNOB3 and KNOB4 all the way down: no reverb, no echo (each hit's note clear to measure). FX: its notes again
+# FX three times: ARP's mix page, KNOB3 and KNOB4 all the way down: no reverb, no echo (each hit's note clear to measure). FX: its notes again
 6250 btn 2
 6300 btn 2
+6320 btn 2
 6350 enc 4 -100
 6400 enc 5 -100
 6450 btn 2

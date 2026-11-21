@@ -71,10 +71,11 @@ static void songs_input(pass_t *pass)
     }
 }
 
-/* a track's sound page (EDIT): the knobs shape the sound, ALGORITHM picks one, SEQ / REC keep it as USER1 / USER2 */
+/* a track's sound pages, SOUND and OSC (EDIT): the knobs shape the sound (each page four of them), ALGORITHM picks one,
+ * SEQ / REC keep it as USER1 / USER2 */
 static void sound_input(pass_t *pass)
 {
-    const uint32_t sound_melodic = pass->page - MELODIC_FIRST_PAGE;
+    const uint32_t sound_melodic = pass->page - MELODIC_FIRST_PAGE, first_knob = pass->osc_page ? SOUND_PAGE_KNOBS : 0u;
     uint32_t knob, user_place;
     if (ui.edit_on && pass->algorithm_detents) {
         sound_apply(sound_melodic, turned_value(song.sound_choices[sound_melodic], pass->algorithm_detents, 0, sound_count(sound_melodic) - 1u));
@@ -83,7 +84,7 @@ static void sound_input(pass_t *pass)
     }
     for (knob = 0; knob < KNOB_COUNT; knob++)
         if (pass->detents[knob]) {
-            pass->song_changed |= turn_setting(&song.sounds[sound_melodic][knob], pass->detents[knob], 0, sound_knob_max(sound_melodic, knob));
+            pass->song_changed |= turn_setting(&song.sounds[sound_melodic][first_knob + knob], pass->detents[knob], 0, sound_knob_max(sound_melodic, first_knob + knob));
             ui.sound_note = SOUND_NOTE_NONE;
             pass->detents[knob] = 0;
         }
@@ -110,6 +111,42 @@ static void mix_input(pass_t *pass)
     pass->song_changed |= turn_setting(pass->page == PAGE_DRUMS ? &song.drum_echo : &song.echo[mix_melodic], pass->detents[3], 0, ECHO_SEND_MAX);
 }
 
+/* a melodic track's LFO page (EDIT): RATE, DEPTH, TARGET, SHAPE of the LFO it plays with in the pattern on the screen:
+ * the song's, or the pattern's own. REC: the pattern gets one of its own (the song's to start from); REC again: it
+ * plays the song's again */
+static void lfo_input(pass_t *pass)
+{
+    const uint32_t lfo_melodic = pass->page - MELODIC_FIRST_PAGE;
+    volatile pattern_t *const pattern = &song.patterns[ui.shown_pattern];   /* (knob_pages comes before pass->pattern is set) */
+    volatile lfo_t *lfo;
+    if (ui.edit_on && pass->buttons_pressed & (1u << BTN_REC)) {
+        if (!(pattern->lfo_own >> lfo_melodic & 1u))
+            memcpy((void *)&pattern->lfos[lfo_melodic], (const void *)&song.lfos[lfo_melodic], sizeof(lfo_t));
+        pattern->lfo_own ^= (uint8_t)(1u << lfo_melodic);
+        pass->song_changed = 1;
+    }
+    lfo = lfo_of(pattern, lfo_melodic);
+    pass->song_changed |= turn_setting(&lfo->rate, pass->detents[0], 0, LFO_RATE_COUNT - 1u);
+    pass->song_changed |= turn_setting(&lfo->depth, pass->detents[1], 0, LFO_DEPTH_MAX);
+    pass->song_changed |= turn_setting(&lfo->target, pass->detents[2], 0, LFO_TARGET_COUNT - 1u);
+    pass->song_changed |= turn_setting(&lfo->shape, pass->detents[3], 0, LFO_SHAPE_COUNT - 1u);
+}
+
+/* ARP's GEN page (EDIT): CHANGE, NOTES, DENSITY, LENGTH of the pattern on the screen's GEN. REC: ARP's MODE GEN (it
+ * plays the loop); REC again: UP 1 (its hits again) */
+static void gen_input(pass_t *pass)
+{
+    volatile pattern_t *const pattern = &song.patterns[ui.shown_pattern];   /* (knob_pages comes before pass->pattern is set) */
+    if (ui.edit_on && pass->buttons_pressed & (1u << BTN_REC)) {
+        pattern->arp_mode = (uint8_t)(pattern->arp_mode == ARP_MODE_GEN ? ARP_MODE(ARP_ORDER_UP, 1u) : ARP_MODE_GEN);
+        pass->song_changed = 1;
+    }
+    pass->song_changed |= turn_setting(&pattern->gen_change, pass->detents[0], 0, GEN_PARAMETER_MAX);
+    pass->song_changed |= turn_setting(&pattern->gen_notes, pass->detents[1], 0, GEN_NOTES_MAX);
+    pass->song_changed |= turn_setting(&pattern->gen_density, pass->detents[2], 0, GEN_PARAMETER_MAX);
+    pass->song_changed |= turn_setting(&pattern->gen_length, pass->detents[3], 1u, GEN_LENGTH_MAX);
+}
+
 /* the songs', the library's, a sound and a mix page take the knobs (no other page sees them then); elsewhere nothing
  * changes without EDIT: the knobs, SEQ and REC wait for it. SEQ (EDIT) elsewhere: the chain on or off */
 static void knobs_taken(pass_t *pass)           /* (the page's own handler had them: no other part of the pass sees them) */
@@ -131,7 +168,13 @@ static void knob_pages(pass_t *pass)
     } else {
         if (!ui.edit_on) knobs_taken(pass);
         if (pass->sound_page) sound_input(pass);
-        else {
+        else if (pass->lfo_page) {
+            lfo_input(pass);
+            knobs_taken(pass);
+        } else if (pass->gen_page) {
+            gen_input(pass);
+            knobs_taken(pass);
+        } else {
             if (pass->mix_page) {
                 mix_input(pass);
                 knobs_taken(pass);
@@ -175,14 +218,32 @@ static void naming_input(pass_t *pass)
 static void mixer_input(pass_t *pass)
 {
     uint32_t track;
-    ui.mixer_track = turned_value(ui.mixer_track, pass->select_detents, 0, TRACK_COUNT - 1u);
-    for (track = 0; track < TRACK_COUNT; track++)
+    ui.mixer_track = turned_value(ui.mixer_track, pass->select_detents, 0, MIXER_TRACKS - 1u);
+    for (track = 0; track < MIXER_TRACKS; track++)
         if (pass->keys_edit && pass->keys_pressed >> STEP_KEYS[track] & 1u) {
             ui.mixer_track = track;
             pass->pattern->mixer_mutes ^= (uint8_t)(1u << track);
             pass->song_changed = 1;
         }
     pass->song_changed |= turn_setting(&pass->pattern->mixer_levels[ui.mixer_track], pass->detents[0], 0, MIX_MAX);
+}
+
+/* DRONE (EDIT): LEVEL, NOTE, TONE, SWELL */
+static void drone_input(pass_t *pass)
+{
+    pass->song_changed |= turn_setting(&song.drone_level, pass->detents[0], 0, MIX_MAX);
+    pass->song_changed |= turn_setting(&song.drone_note, pass->detents[1], 0, DRONE_NOTE_MAX);
+    pass->song_changed |= turn_setting(&song.drone_tone, pass->detents[2], 0, SYNTH_PARAMETER_MAX);
+    pass->song_changed |= turn_setting(&song.drone_swell, pass->detents[3], 0, SYNTH_PARAMETER_MAX);
+}
+
+/* ECHO (EDIT): TIME, REPEATS (its feedback), WIDTH, TONE */
+static void echo_input(pass_t *pass)
+{
+    pass->song_changed |= turn_setting(&song.echo_time, pass->detents[0], 0, ECHO_TIMES - 1u);
+    pass->song_changed |= turn_setting(&song.echo_feedback, pass->detents[1], 0, ECHO_PARAMETER_MAX);
+    pass->song_changed |= turn_setting(&song.echo_width, pass->detents[2], 0, ECHO_PARAMETER_MAX);
+    pass->song_changed |= turn_setting(&song.echo_tone, pass->detents[3], 0, ECHO_PARAMETER_MAX);
 }
 
 /* DRUMS: SELECT or a played key picks the drum. EDIT: a step key tapped puts the drum's hit there or takes it away;
@@ -553,6 +614,8 @@ static void page_input(pass_t *pass)
     if (pass->page == PAGE_GLOBAL) global_input(pass);
     else if (pass->page == PAGE_NAMING) naming_input(pass);
     else if (pass->page == PAGE_MIXER) mixer_input(pass);
+    else if (pass->page == PAGE_DRONE) drone_input(pass);
+    else if (pass->page == PAGE_ECHO) echo_input(pass);
     else if (pass->page == PAGE_DRUMS) drums_input(pass);
     else if (pass->page < TRACK_COUNT) track_input(pass);
     for (track = 0; track < MELODIC_COUNT; track++)

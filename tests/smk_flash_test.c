@@ -39,15 +39,16 @@ int main(void)
     check("no protected sector passes the app's allow-list (erase, page)", leak_app == 0);
     check("no protected sector passes the loader's allow-list", leak_ldr == 0);
     check("the RAM driver's own net (FL_PROTECTED) covers every protected sector", leak_guard == 0);
-    check("the app may write 47 sectors: settings, 8 blobs, the owner tag, 5 of OTA, 8 slots of 4", allowed == 7u + NBLOB + NSLOT * SLOT_SECT);
-    check("straddling ranges refused: 0xBF000+0x2000, 0x9C000+0x2000, 0xA5000+0x2000, 0x3000+0x2000",
-          !FL_GUARD(0xBF000u, 0x2000u) && !FL_GUARD(0x9C000u, 0x2000u) && !FL_GUARD(0xA5000u, 0x2000u) &&
+    check("the app may write 56 sectors: settings and 8 blobs of 2, the owner tag, 5 of OTA, 8 slots of 4",
+          allowed == 6u + (1u + NBLOB) * BLOB_SECT + NSLOT * SLOT_SECT && allowed == 56u);
+    check("straddling ranges refused: 0xBF000+0x2000, 0x9C000+0x2000, 0xAE000+0x2000, 0x3000+0x2000",
+          !FL_GUARD(0xBF000u, 0x2000u) && !FL_GUARD(0x9C000u, 0x2000u) && !FL_GUARD(0xAE000u, 0x2000u) &&
           !LDR_RANGE_OK(0xBF000u, 0x2000u) && !LDR_RANGE_OK(0x3000u, 0x2000u) && FL_PROTECTED(0xBF000u, 0x2000u));
     check("wrapping ranges refused (off + n past 4 GiB)",
           !FL_GUARD(0xBB000u, 0xFFFFF000u) && !FL_GUARD(SETTINGS_AT, 0xFFFFFF00u) && !LDR_RANGE_OK(0x9D000u, 0xFFFFFF00u) &&
           FL_PROTECTED(0xBB000u, 0xFFFFF000u));
     objs[0] = SETTINGS_AT;
-    for (i = 0; i < NBLOB; i++) objs[1 + i] = BLOBS_AT + i * 0x1000u;
+    for (i = 0; i < NBLOB; i++) objs[1 + i] = BLOBS_AT + i * BLOB_SECT * 0x1000u;
     objs[NBLOB + 1] = OWNER_AT;
     for (i = 0; i < NBLOB + 2u; i++) {
         uint32_t j;
@@ -55,8 +56,9 @@ int main(void)
                   objs[i] + 0x1000u <= FL_DATA_HI && objs[i] % 0x1000u == 0u;
         for (j = 0; j < NBLOB + 2u; j++) if (i != j && objs[i] == objs[j]) distinct = 0;
     }
-    check("settings 0x9D000, blobs 0x9E000-0xA5FFF, owner tag 0xAF000: in FL_DATA, writable, apart",
-          inside && distinct && SETTINGS_AT == 0x9D000u && BLOBS_AT == 0x9E000u && OWNER_AT == 0xAF000u);
+    check("settings 0x9D000-0x9EFFF, blobs 0x9F000-0xAEFFF, owner tag 0xAF000: in FL_DATA, writable, apart",
+          inside && distinct && SETTINGS_AT == 0x9D000u && BLOBS_AT == 0x9F000u && OWNER_AT == 0xAF000u &&
+          FL_GUARD(SETTINGS_AT, BLOB_SECT * 0x1000u) && FL_GUARD(BLOBS_AT, NBLOB * BLOB_SECT * 0x1000u));
     check("OTA staging 0xBB000-0xBFFFF writable, the window ends below BTIF",
           FL_GUARD(0xBB000u, 0x1000u) && FL_GUARD(0xBFF00u, 0x100u) && !FL_GUARD(0xC0000u, 0x100u) && FL_OTA_HI == 0xC0000u);
     check("slots 0xC2000-0xE1FFF in FL_SMP, writable; the FM-1's places refused on the SMK: 0xFC000, 0xF4000-0xFBFFF",

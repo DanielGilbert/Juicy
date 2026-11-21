@@ -108,7 +108,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 
 /* storage in RAM (lost at exit), store.h's sizes */
 #include "store.h"
-static uint8_t host_set[SECTOR_MAX + 4], host_blob[NBLOB][SECTOR_MAX + 4], host_slot[NSLOT][SLOT_MAX + 4];
+static uint8_t host_set[BLOB_MAX + 4], host_blob[NBLOB][BLOB_MAX + 4], host_slot[NSLOT][SLOT_MAX + 4];
 static int host_load(uint8_t *a, uint32_t max, void *p, uint32_t n)   /* a[0] used, a[1..3] the length */
 {
     if (!a[0] || n > max || (uint32_t)(a[1] | a[2] << 8 | a[3] << 16) != n) return -1;
@@ -123,10 +123,10 @@ static int host_save(uint8_t *a, uint32_t max, const void *p, uint32_t n, const 
     printf("%6u ms  %s %u saved (%u B)\n", fm1_ms, what, i, n);
     return 0;
 }
-static int settings_load(void *p, uint32_t n) { return host_load(host_set, SECTOR_MAX, p, n); }
-static int settings_save(const void *p, uint32_t n) { return host_save(host_set, SECTOR_MAX, p, n, "settings", 0); }
-static int blob_load(uint32_t i, void *p, uint32_t n) { return i < NBLOB ? host_load(host_blob[i], SECTOR_MAX, p, n) : -1; }
-static int blob_save(uint32_t i, const void *p, uint32_t n) { return i < NBLOB ? host_save(host_blob[i], SECTOR_MAX, p, n, "blob", i) : -1; }
+static int settings_load(void *p, uint32_t n) { return host_load(host_set, BLOB_MAX, p, n); }
+static int settings_save(const void *p, uint32_t n) { return host_save(host_set, BLOB_MAX, p, n, "settings", 0); }
+static int blob_load(uint32_t i, void *p, uint32_t n) { return i < NBLOB ? host_load(host_blob[i], BLOB_MAX, p, n) : -1; }
+static int blob_save(uint32_t i, const void *p, uint32_t n) { return i < NBLOB ? host_save(host_blob[i], BLOB_MAX, p, n, "blob", i) : -1; }
 static int slot_load(uint32_t i, void *p, uint32_t n) { return i < NSLOT ? host_load(host_slot[i], SLOT_MAX, p, n) : -1; }
 static int slot_save(uint32_t i, const void *p, uint32_t n) { return i < NSLOT ? host_save(host_slot[i], SLOT_MAX, p, n, "slot", i) : -1; }
 

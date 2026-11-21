@@ -1,0 +1,53 @@
+# The LFO page (LFO on a melodic track): RATE, DEPTH, TARGET, SHAPE of the song's LFO for the track; REC gives the
+# pattern on the screen an LFO of its own (the song's to start from), REC again takes it away (tests/host.c says what
+# a line can do).
+#   tests/run_host.sh tests/scripts/lfo.txt
+# HOME: to the drums. SEL, OP4, EDIT: the pad, EDIT on. LFO: its LFO page, the song's (4 BARS, DEPTH 0: a flat line)
+5 btn 8
+100 btn 3
+120 keys 0x100
+140 keys 0
+160 btn 6
+200 btn 5
+400 shot
+# DEPTH 80, RATE two back: 1 BAR (the CUTOFF, a sine). A chord held 8 s while stopped: the filter goes up and down
+# once a bar, at the song's tempo
+500 enc 3 80
+600 enc 2 -2
+800 shot
+1000 keys 0x1
+9000 keys 0
+# SHAPE all the way: DRIFT (four random cycles in the picture). TARGET one on: PITCH
+9500 enc 5 6
+9600 enc 4 1
+9700 shot
+# REC: pattern A's own LFO, the song's to start from (orange). DEPTH down to 40 there
+10000 btn 13
+10200 shot
+10300 enc 3 -40
+10500 shot
+# PRESETS one on: pattern B plays the song's (DEPTH 80, DRIFT, PITCH); back to A: its own (DEPTH 40)
+10600 enc 6 1
+10800 shot
+10900 enc 6 -1
+11100 shot
+# REC again: A plays the song's again. FX: back to the pad's notes (the LFO button glows: the page is there)
+11200 btn 13
+11400 shot
+11500 btn 2
+11700 shot
+# SEL, OP2, EDIT: the bass. LFO: its LFO page. DEPTH 100, TARGET LEVEL, SHAPE SQUARE, RATE 1/4 BAR; PLAY 4 s:
+# the bass on and off every half beat, without clicks (it glides as a pattern's mix does)
+12000 btn 3
+12020 keys 0x8
+12040 keys 0
+12060 btn 6
+12100 btn 5
+12200 enc 3 100
+12300 enc 4 2
+12400 enc 5 4
+12500 enc 2 -4
+12700 shot
+13000 btn 12
+17000 btn 12
+18000 end

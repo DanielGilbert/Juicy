@@ -38,38 +38,72 @@ static const uint32_t PAD_LEVEL_STEP[SYNTH_PARAMETER_MAX + 1u] = {
     277, 259, 242, 227, 212, 198, 186, 174, 162, 152, 142, 133,
     124, 116, 109, 102, 95};
 
+#define PAD_SUB_AMPLITUDE_UNIT 41               /* SUB 100: a square of +-4100, about as loud as two of the chord's notes */
+
 static struct {
-    uint32_t phase[PAD_NOTES_MAX][2], phase_step[PAD_NOTES_MAX][2], held, note_count;
+    uint32_t phase[PAD_NOTES_MAX][2], phase_step[PAD_NOTES_MAX][2], phase_step_target[PAD_NOTES_MAX][2], held, note_count;
+    uint32_t phase_sub, glide_rate, glide_frames;   /* SUB's phase; GLIDE (SYNTH_GLIDE_RATE), the frames since it last moved on */
     int32_t level, low, band;
 } pad;
 
-static void pad_chord_on(uint32_t root, uint32_t chord, uint32_t spread)   /* root: MIDI; chord: PAD_CHORD_*; spread 0..SYNTH_PARAMETER_MAX */
+static int pad_quiet(void) { return !pad.held && !pad.level; }
+
+/* root: MIDI; chord: PAD_CHORD_*; spread 0..SYNTH_PARAMETER_MAX; glide_rate SYNTH_GLIDE_RATE (0: at once). Gliding, each
+ * note goes from the one in its place in the chord before (a note the chord before did not have: at once) */
+static void pad_chord_on(uint32_t root, uint32_t chord, uint32_t spread, uint32_t glide_rate)
 {
+    const uint32_t note_count_before = pad_quiet() ? 0u : pad.note_count;
     uint32_t note;
     pad.note_count = PAD_CHORDS[chord].note_count;
+    pad.glide_rate = glide_rate;
     for (note = 0; note < pad.note_count; note++) {
         uint32_t phase_step = note_phase_step(root + PAD_CHORDS[chord].intervals[note]);
         uint32_t detune = ((phase_step >> PAD_DETUNE_SHIFT) * spread) >> PAD_SPREAD_UNIT_SHIFT;
-        pad.phase_step[note][0] = phase_step - detune;
-        pad.phase_step[note][1] = phase_step + detune;
+        pad.phase_step_target[note][0] = phase_step - detune;
+        pad.phase_step_target[note][1] = phase_step + detune;
+        if (!glide_rate || note >= note_count_before) {
+            pad.phase_step[note][0] = pad.phase_step_target[note][0];
+            pad.phase_step[note][1] = pad.phase_step_target[note][1];
+        }
     }
     pad.held = 1;
 }
 
 static void pad_chord_off(void) { pad.held = 0; }
 
-static int pad_quiet(void) { return !pad.held && !pad.level; }
-
-/* adds to out (mono, a value a frame); cutoff, resonance, attack and release 0..SYNTH_PARAMETER_MAX */
-static void pad_render(int32_t *out, uint32_t frame_count, uint32_t cutoff, uint32_t resonance, uint32_t attack, uint32_t release)
+static void pad_pitched(uint32_t phase_steps[PAD_NOTES_MAX][2], uint32_t pitch_q16, uint32_t *sub_step)   /* the notes' steps as the LFO has them now */
 {
-    int32_t filter_frequency = SYNTH_CUTOFF[cutoff], damping = SYNTH_DAMPING[resonance];
+    uint32_t note, side;
+    for (note = 0; note < pad.note_count; note++)
+        for (side = 0; side < 2u; side++) phase_steps[note][side] = synth_pitched(pad.phase_step[note][side], pitch_q16);
+    *sub_step = (phase_steps[0][0] >> 2) + (phase_steps[0][1] >> 2);   /* (an octave under the root) */
+}
+
+/* adds to out (mono, a value a frame); cutoff_q8 0..SYNTH_PARAMETER_MAX << 8 (in 1/256 of a step); resonance, attack,
+ * release and sub (SUB's level) 0..SYNTH_PARAMETER_MAX; the chord's pitch times pitch_q16 (the LFO's) */
+static void pad_render(int32_t *out, uint32_t frame_count, uint32_t cutoff_q8, uint32_t resonance, uint32_t attack, uint32_t release,
+                       uint32_t sub, uint32_t pitch_q16)
+{
+    int32_t filter_frequency = synth_cutoff_frequency(cutoff_q8), damping = SYNTH_DAMPING[resonance];
     int32_t attack_step = (int32_t)PAD_LEVEL_STEP[attack], release_step = (int32_t)PAD_LEVEL_STEP[release];
-    const int32_t notes_gain = PAD_NOTES_GAIN[pad.note_count];
-    uint32_t i, note;
+    const int32_t notes_gain = PAD_NOTES_GAIN[pad.note_count], sub_amplitude = (int32_t)sub * PAD_SUB_AMPLITUDE_UNIT;
+    uint32_t phase_steps[PAD_NOTES_MAX][2], sub_step;
+    uint32_t i, note, side;
     if (pad_quiet()) return;
+    pad_pitched(phase_steps, pitch_q16, &sub_step);
     for (i = 0; i < frame_count; i++) {
         int32_t wave = 0, high, sample;
+        if (++pad.glide_frames >= SYNTH_CONTROL_FRAMES) {   /* GLIDE: every 32 frames each note on towards its own */
+            int gliding = 0;
+            pad.glide_frames = 0;
+            for (note = 0; note < pad.note_count; note++)
+                for (side = 0; side < 2u; side++)
+                    if (pad.phase_step[note][side] != pad.phase_step_target[note][side]) {
+                        pad.phase_step[note][side] = synth_glided(pad.phase_step[note][side], pad.phase_step_target[note][side], pad.glide_rate);
+                        gliding = 1;
+                    }
+            if (gliding) pad_pitched(phase_steps, pitch_q16, &sub_step);
+        }
         if (pad.held) {
             pad.level += attack_step;
             if (pad.level > PAD_LEVEL_FULL) pad.level = PAD_LEVEL_FULL;
@@ -78,11 +112,15 @@ static void pad_render(int32_t *out, uint32_t frame_count, uint32_t cutoff, uint
             if (pad.level < 0) pad.level = 0;
         }
         for (note = 0; note < pad.note_count; note++) {
-            pad.phase[note][0] += pad.phase_step[note][0];
-            pad.phase[note][1] += pad.phase_step[note][1];
+            pad.phase[note][0] += phase_steps[note][0];
+            pad.phase[note][1] += phase_steps[note][1];
             wave += ((int32_t)pad.phase[note][0] >> 20) + ((int32_t)pad.phase[note][1] >> 20);   /* two a note: -4096..4094 */
         }
         wave = (wave * notes_gain) >> 8;        /* (four notes: up to -14189..14187) */
+        if (sub_amplitude) {                    /* SUB: a square an octave under the root (100: up to -18289..18287 with four notes) */
+            pad.phase_sub += sub_step;
+            wave += pad.phase_sub < 0x80000000u ? sub_amplitude : -sub_amplitude;
+        }
         pad.low += (filter_frequency * pad.band) >> 15;
         high = wave - pad.low - ((damping * pad.band) >> 15);
         pad.band += (filter_frequency * high) >> 15;

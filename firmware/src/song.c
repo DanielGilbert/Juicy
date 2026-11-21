@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Juicy's song: the tracks, what a pattern and a song hold, the sounds, the names; checking a kept song or
- * pattern and growing one kept in an older size; putting notes on a track and taking them away. juicy.c
+ * pattern; putting notes on a track and taking them away. juicy.c
  * includes it after the sound engines. */
 
 /* ---- the melodic tracks: BASS, ARP and LEAD are each one synth voice (synth.c) whose shape is the track's
@@ -17,10 +17,11 @@ enum { MELODIC_BASS, MELODIC_ARP, MELODIC_PAD, MELODIC_LEAD, MELODIC_COUNT };
 #define ARP_OCTAVES_MAX 3u                      /* MODE: an order (ARP_ORDER_*) over 1 .. 3 octaves, order * 3 + octaves - 1 */
 enum { ARP_ORDER_UP, ARP_ORDER_DOWN, ARP_ORDER_UP_DOWN, ARP_ORDER_RANDOM, ARP_ORDER_COUNT };
 #define ARP_MODE_TONES (ARP_ORDER_COUNT * ARP_OCTAVES_MAX)   /* MODE TONES: each hit plays its own tone of the chord, not the next one */
-#define ARP_MODE_MAX ARP_MODE_TONES
+#define ARP_MODE_GEN (ARP_MODE_TONES + 1u)      /* MODE GEN: ARP plays itself, a loop of notes that changes now and then (the GEN page) */
+#define ARP_MODE_MAX ARP_MODE_GEN
 #define ARP_MODE(order, octaves) ((order) * ARP_OCTAVES_MAX + (octaves) - 1u)
 static const char *const ARP_MODE_NAMES[ARP_MODE_MAX + 1u] = {"UP 1", "UP 2", "UP 3", "DOWN 1", "DOWN 2", "DOWN 3",
-                                                             "UP/DN 1", "UP/DN 2", "UP/DN 3", "RAND 1", "RAND 2", "RAND 3", "TONES"};
+                                                             "UP/DN 1", "UP/DN 2", "UP/DN 3", "RAND 1", "RAND 2", "RAND 3", "TONES", "GEN"};
 #define NAME_LENGTH 8u                          /* a song's or a pattern's name: 8 characters, by number in NAME_CHARACTERS */
 static const char NAME_CHARACTERS[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";   /* (0: a space; a new name is all spaces) */
 #define NAME_CHARACTER_COUNT (sizeof NAME_CHARACTERS - 1u)
@@ -51,8 +52,23 @@ static synth_voice_t melodic_voices[MELODIC_COUNT];   /* (the pad's is not used)
 #define MIX_MAX 100u                            /* LEVEL, PAN (50: the middle), REVERB 0..100 */
 #define REVERB_MAX 100u
 #define SWING_MAX 30u                           /* a pattern's swing over straight (50 %): 30 is 80 %, the second step 0.6 of a step late */
-#define ECHO_STEPS 3u                           /* the echo comes back a dotted eighth later */
-#define SOUND_KNOBS 4u                          /* a sound's page: BASS, ARP, LEAD: WAVE, RESO, ATTACK, ENV; PAD: SPREAD, RESO, ATTACK, RELEASE */
+#define ECHO_TIMES 5u                           /* the echo's TIME: a sixteenth, an eighth, a dotted eighth, a quarter, a dotted quarter */
+static const uint8_t ECHO_TIME_STEPS[ECHO_TIMES] = {1, 2, 3, 4, 6};
+#define SOUND_KNOBS 8u                          /* a sound's two pages. SOUND: BASS, ARP, LEAD: WAVE, RESO, ATTACK, ENV; PAD: SPREAD, RESO,
+                                                   ATTACK, RELEASE. OSC: BASS, ARP, LEAD: SUB, OSC2, LEVEL (OSC2's), GLIDE; PAD: SUB, -, -, GLIDE */
+enum { SOUND_KNOB_WAVE, SOUND_KNOB_RESONANCE, SOUND_KNOB_ATTACK, SOUND_KNOB_ENVELOPE, SOUND_KNOB_SUB, SOUND_KNOB_OSC2,
+       SOUND_KNOB_OSC2_LEVEL, SOUND_KNOB_GLIDE };   /* (the pad's first is SPREAD, its fourth RELEASE) */
+#define SOUND_PAGE_KNOBS 4u                     /* a page's: SOUND the first four, OSC the next */
+
+#define MIXER_TRACKS (1u + MELODIC_COUNT + 1u)   /* what a pattern's mix has a level and a mute for: the drums, the melodic tracks, the drone */
+#define DRONE_MIXER_TRACK (1u + MELODIC_COUNT)
+
+typedef struct {                                /* a melodic track's LFO (lfo.c), the knobs of its page */
+    uint8_t rate;                               /* 0..LFO_RATE_COUNT - 1: a cycle of 4 << rate steps */
+    uint8_t depth;                              /* 0..LFO_DEPTH_MAX: 0 it does nothing */
+    uint8_t target;                             /* LFO_TARGET_* */
+    uint8_t shape;                              /* LFO_SHAPE_* */
+} lfo_t;
 
 typedef struct {
     uint16_t drum_hits[DRUM_COUNT][BAR_COUNT];  /* bit s: a hit on step s of that bar */
@@ -64,21 +80,21 @@ typedef struct {
     uint16_t accents[1u + MELODIC_COUNT][BAR_COUNT];   /* bit s: step s is accented. The drums: every drum on it; a melodic track
                                                    (not the pad): the note starting there. A track's place as in bar_totals */
     uint8_t name[NAME_LENGTH];                  /* its name (the NAMES page), NAME_CHARACTERS by number */
-    uint8_t mixer_levels[1u + MELODIC_COUNT];   /* its own mix (the MIXER page): each track's level in this pattern, 0..MIX_MAX, on top
-                                                   of the track's LEVEL (100: as LEVEL says). A track's place as in bar_totals */
+    uint8_t mixer_levels[MIXER_TRACKS];         /* its own mix (the MIXER page): each track's level in this pattern, 0..MIX_MAX, on top
+                                                   of the track's LEVEL (100: as LEVEL says). A track's place as in bar_totals, then the drone */
     uint8_t mixer_mutes;                        /* bit t: track t (as there) is muted in this pattern, as SEL's mute keys mute it everywhere */
+    lfo_t lfos[MELODIC_COUNT];                  /* a melodic track's own LFO in this pattern, where lfo_own says so */
+    uint8_t lfo_own;                            /* bit m: melodic track m has its own LFO here (else it plays the song's) */
+    uint8_t gen_change;                         /* ARP's MODE GEN (the GEN page): CHANGE 0..GEN_PARAMETER_MAX, how likely a step changes, */
+    uint8_t gen_notes;                          /* NOTES 0..GEN_NOTES_MAX (GEN_NOTES_*), */
+    uint8_t gen_density;                        /* DENSITY 0..GEN_PARAMETER_MAX, how many steps play, */
+    uint8_t gen_length;                         /* LENGTH 1..GEN_LENGTH_MAX, the loop's steps */
 } pattern_t;
-#define PATTERN_SIZE_BEFORE_GATES 310u          /* a pattern kept before there were gates: all of it up to them */
-#define PATTERN_SIZE_BEFORE_ARP 438u            /* ... and before there was ARP (its track was SEQUENCE): all of it up to MODE */
-#define PATTERN_SIZE_BEFORE_ACCENTS 440u        /* ... and before there were accents */
-#define PATTERN_SIZE_BEFORE_NAMES 480u          /* ... and before there were names */
-#define PATTERN_SIZE_BEFORE_MIXER 488u          /* ... and before a pattern had a mix of its own */
-_Static_assert(offsetof(pattern_t, gates) == PATTERN_SIZE_BEFORE_GATES && offsetof(pattern_t, arp_mode) == PATTERN_SIZE_BEFORE_ARP
-               && offsetof(pattern_t, accents) == PATTERN_SIZE_BEFORE_ACCENTS && offsetof(pattern_t, name) == PATTERN_SIZE_BEFORE_NAMES
-               && offsetof(pattern_t, mixer_levels) == PATTERN_SIZE_BEFORE_MIXER && sizeof(pattern_t) == 494u, "what is new comes after what was there");
-#define PATTERN_SIZES_COUNT 6u
-static const uint32_t PATTERN_SIZES[PATTERN_SIZES_COUNT] = {sizeof(pattern_t), PATTERN_SIZE_BEFORE_MIXER, PATTERN_SIZE_BEFORE_NAMES,
-                                                            PATTERN_SIZE_BEFORE_ACCENTS, PATTERN_SIZE_BEFORE_ARP, PATTERN_SIZE_BEFORE_GATES};   /* now, then as kept before */
+/* GEN's NOTES: the notes of the chord ARP plays over, or of the song's key (KEY OFF: A minor), over 1 .. 3 octaves */
+#define GEN_OCTAVES 3u
+enum { GEN_NOTES_CHORD, GEN_NOTES_SCALE = GEN_OCTAVES, GEN_NOTES_MAX = 2u * GEN_OCTAVES - 1u };
+#define GEN_PARAMETER_MAX 100u
+#define GEN_LENGTH_MAX 16u
 
 static uint32_t note_gate(const volatile uint8_t *bar_gates, uint32_t step)   /* bar_gates: a track's bar in gates */
 {
@@ -148,33 +164,19 @@ static uint32_t chord_notes(uint32_t chord)     /* bit n: the chord (as on the p
     return notes;
 }
 
-static void bytes_move_up(void *to, const void *from, uint32_t count)   /* to at or after from: the last byte first (libc.c has no memmove) */
-{
-    uint8_t *destination = to;
-    const uint8_t *source = from;
-    while (count-- > 0u) destination[count] = source[count];
-}
-
-static void mixer_levels_full(volatile pattern_t *pattern)   /* its mix: every track as its LEVEL says (as before there was one) */
+static void mixer_levels_full(volatile pattern_t *pattern)   /* its mix: every track as its LEVEL says */
 {
     uint32_t track;
     for (track = 0; track < sizeof pattern->mixer_levels; track++) pattern->mixer_levels[track] = MIX_MAX;
 }
 
-/* patterns kept in an older size (kept_size), read into the start of where count of them go: each moves to its
- * place (the last first, so none is overwritten before it moved), what is new after it zero (the notes whole steps,
- * MODE UP 1, no accents, nothing muted), the levels of its mix full. Kept before ARP, its track was SEQUENCE, with
- * notes of its own: they go */
-static void patterns_grow(pattern_t *patterns, uint32_t count, uint32_t kept_size)
+static void pattern_defaults(volatile pattern_t *pattern)   /* (a new pattern's, besides its zeros) its mix full, GEN calm */
 {
-    while (count-- > 0u) {
-        bytes_move_up(&patterns[count], (const uint8_t *)patterns + count * kept_size, kept_size);
-        memset((uint8_t *)&patterns[count] + kept_size, 0, sizeof(pattern_t) - kept_size);
-        mixer_levels_full(&patterns[count]);
-        if (kept_size > PATTERN_SIZE_BEFORE_ARP) continue;
-        memset(patterns[count].notes[MELODIC_ARP], 0, sizeof patterns[count].notes[MELODIC_ARP]);
-        memset(patterns[count].gates[MELODIC_ARP], 0, sizeof patterns[count].gates[MELODIC_ARP]);
-    }
+    mixer_levels_full(pattern);
+    pattern->gen_change = 10;
+    pattern->gen_notes = GEN_NOTES_CHORD + 1u;
+    pattern->gen_density = 70;
+    pattern->gen_length = GEN_LENGTH_MAX;
 }
 
 static uint32_t pattern_bars(const volatile pattern_t *pattern)   /* how long it lasts: as its longest track */
@@ -208,21 +210,19 @@ typedef struct {
     uint8_t name[NAME_LENGTH];                  /* its name (the NAMES page), as a pattern's */
     uint8_t key;                                /* its key (JUICY's KNOB4): KEY_OFF, or SONG_KEY(root, major); was padding: beyond
                                                    SONG_KEY_MAX it counts as KEY_OFF (song_key) */
+    lfo_t lfos[MELODIC_COUNT];                  /* each melodic track's LFO (a pattern may have its own: lfo_own) */
+    uint8_t drone_level;                        /* the drone (JUICY's DRONE page): its LEVEL 0..MIX_MAX (0: none), */
+    uint8_t drone_note;                         /* its NOTE 0..DRONE_NOTE_MAX (DRONE_NOTE_*), */
+    uint8_t drone_tone, drone_swell;            /* its TONE and SWELL 0..SYNTH_PARAMETER_MAX */
+    uint8_t echo_time;                          /* the echo (JUICY's ECHO page): its TIME 0..ECHO_TIMES - 1 (ECHO_TIME_STEPS), */
+    uint8_t echo_feedback, echo_width, echo_tone;   /* its FEEDBACK, WIDTH and TONE 0..ECHO_PARAMETER_MAX */
 } song_t;
-/* a song kept with patterns that size: older ones (all before there were names) have no name of their own either */
-#define SONG_SIZE_KEPT(pattern_size) (sizeof(song_t) - PATTERN_COUNT * (sizeof(pattern_t) - (pattern_size)) \
-                                      - ((pattern_size) < PATTERN_SIZE_BEFORE_MIXER ? NAME_LENGTH : 0u))
-_Static_assert(offsetof(song_t, patterns) == 0u, "the patterns first: a song kept with smaller ones grows in place");
-_Static_assert(sizeof(song_t) == 4032u, "the patterns' mixes: a song is 48 B bigger than before");
 
-static void song_grow(song_t *grown, uint32_t kept_pattern_size)   /* a song kept with patterns of an older size, read into its start */
-{
-    bytes_move_up(&grown->chain, (const uint8_t *)grown + PATTERN_COUNT * kept_pattern_size, sizeof(song_t) - offsetof(song_t, chain));
-    patterns_grow(grown->patterns, PATTERN_COUNT, kept_pattern_size);
-    if (kept_pattern_size >= PATTERN_SIZE_BEFORE_MIXER) return;   /* (kept with names: its name and its key came along) */
-    memset(grown->name, 0, sizeof grown->name);
-    grown->key = KEY_OFF;
-}
+/* the drone's NOTE: the song key's root (KEY OFF: A) or the root of the pad's chord (before its first: the key's), in
+ * one of three octaves */
+#define DRONE_OCTAVES 3u
+enum { DRONE_NOTE_KEY, DRONE_NOTE_CHORD = DRONE_OCTAVES, DRONE_NOTE_MAX = 2u * DRONE_OCTAVES - 1u };
+#define DRONE_NOTE(octave, root) (12u * (2u + (octave)) + (root))   /* MIDI; octave 0..2: C1 .. B1 to C3 .. B3 */
 
 static int name_valid(const volatile uint8_t *name)
 {
@@ -263,9 +263,22 @@ static void name_set(volatile uint8_t *name, const char *text)   /* (the demo so
 
 static volatile song_t song;
 
+/* the LFO a melodic track plays with in that pattern: the pattern's own, or the song's */
+static volatile lfo_t *lfo_of(volatile pattern_t *pattern, uint32_t melodic)
+{
+    return pattern->lfo_own >> melodic & 1u ? &pattern->lfos[melodic] : &song.lfos[melodic];
+}
+
 static uint32_t song_key(void)                  /* the song's key; an old save's padding there counts as KEY_OFF */
 {
     return song.key <= SONG_KEY_MAX ? song.key : KEY_OFF;
+}
+
+static uint32_t drone_note_for(uint32_t chord_root)   /* the note the drone holds (MIDI); chord_root: the pad's last chord's root 0..11, 12 none */
+{
+    const uint32_t key = song_key(), octave = song.drone_note % DRONE_OCTAVES;
+    const uint32_t root = song.drone_note >= DRONE_NOTE_CHORD && chord_root < 12u ? chord_root : key == KEY_OFF ? 9u : (key - 1u) / 2u;
+    return DRONE_NOTE(octave, root);
 }
 
 #define PAD_CHORD_AUTO PAD_CHORD_COUNT          /* the next chord's type (never on a step): the one that fits the song's key */
@@ -289,10 +302,10 @@ static uint32_t pad_chord_for(uint32_t root, uint32_t chord)
     return PAD_CHORD_MAJOR;
 }
 
-/* ---- the sounds of the melodic tracks. A sound is the four knobs of a track's sound page and its CUTOFF and
+/* ---- the sounds of the melodic tracks. A sound is the eight knobs of a track's two sound pages and its CUTOFF and
  * DECAY. Each track has a few named ones and two of the player's own (USER1, USER2: in flash, slot 1, for every
  * song). The song keeps each track's sound as it is, and which one it came from. */
-#define PRESETS_MAX 4u
+#define PRESETS_MAX 5u
 #define USER_SOUNDS 2u
 #define USER_SOUNDS_SLOT 1u                     /* (the library's is 0) */
 
@@ -303,17 +316,21 @@ static const struct {
     const char *names[PRESETS_MAX];
     sound_t sounds[PRESETS_MAX];
 } PRESETS[MELODIC_COUNT] = {
-    {4, {"PLUCK", "SUB", "ACID", "REESE"},       /* BASS (ACID: the first song's) */
+    {5, {"PLUCK", "SUB", "ACID", "REESE", "MOOG"},   /* BASS (ACID: the first song's) */
      {{{SYNTH_WAVE_SAW, 50, 0, 32}, 45, 35}, {{SYNTH_WAVE_SOFT, 0, 0, 0}, 30, 70},
-      {{SYNTH_WAVE_SAW, 92, 0, 70}, 15, 30}, {{SYNTH_WAVE_SAWS, 30, 0, 10}, 40, 80}}},
-    {4, {"PLUCK", "SQUARE", "SAW", "SOFT"},      /* ARP */
+      {{SYNTH_WAVE_SAW, 92, 0, 70}, 15, 30}, {{SYNTH_WAVE_SAWS, 30, 0, 10}, 40, 80},
+      {{SYNTH_WAVE_SAW, 45, 0, 35, 60, SYNTH_OSC2_DETUNE, 50, 12}, 28, 65}}},   /* (a saw, its sub, a second saw a little higher, a short glide) */
+    {5, {"PLUCK", "SQUARE", "SAW", "SOFT", "SEQ"},   /* ARP */
      {{{SYNTH_WAVE_PULSE, 50, 0, 64}, 50, 25}, {{SYNTH_WAVE_SQUARE, 50, 0, 40}, 45, 30},
-      {{SYNTH_WAVE_SAW, 60, 0, 50}, 40, 25}, {{SYNTH_WAVE_SOFT, 20, 30, 10}, 60, 45}}},
-    {3, {"WARM", "BRIGHT", "SLOW"},              /* PAD: SPREAD, RESO, ATTACK, RELEASE; no DECAY */
-     {{{64, 0, 51, 72}, 50, 0}, {{90, 45, 40, 72}, 70, 0}, {{64, 0, 85, 90}, 45, 0}}},
-    {3, {"SUPERSAW", "SQUARE", "SOFT"},          /* LEAD */
+      {{SYNTH_WAVE_SAW, 60, 0, 50}, 40, 25}, {{SYNTH_WAVE_SOFT, 20, 30, 10}, 60, 45},
+      {{SYNTH_WAVE_SAW, 55, 0, 55, 0, SYNTH_OSC2_FIFTH, 45, 0}, 32, 30}}},   /* (a dark pluck with a fifth over it) */
+    {4, {"WARM", "BRIGHT", "SLOW", "DEEP"},      /* PAD: SPREAD, RESO, ATTACK, RELEASE; no DECAY */
+     {{{64, 0, 51, 72}, 50, 0}, {{90, 45, 40, 72}, 70, 0}, {{64, 0, 85, 90}, 45, 0},
+      {{80, 10, 80, 92, 70, 0, 0, 30}, 32, 0}}},   /* (slow, dark, a sub under it, chords that glide) */
+    {4, {"SUPERSAW", "SQUARE", "SOFT", "MONO"},  /* LEAD */
      {{{SYNTH_WAVE_SAWS, 50, 0, 32}, 65, 55}, {{SYNTH_WAVE_SQUARE, 40, 0, 30}, 60, 55},
-      {{SYNTH_WAVE_SOFT, 20, 45, 10}, 70, 70}}},
+      {{SYNTH_WAVE_SOFT, 20, 45, 10}, 70, 70},
+      {{SYNTH_WAVE_SAW, 35, 5, 30, 0, SYNTH_OSC2_DETUNE, 70, 30}, 50, 75}}},   /* (two saws, a glide from note to note) */
 };
 static const char *const USER_NAMES[USER_SOUNDS] = {"USER1", "USER2"};
 static sound_t user_sounds[MELODIC_COUNT][USER_SOUNDS];   /* (the main loop's) */
@@ -330,9 +347,10 @@ static const sound_t *sound_source(uint32_t melodic, uint32_t choice)
     return choice < PRESETS[melodic].count ? &PRESETS[melodic].sounds[choice] : &user_sounds[melodic][choice - PRESETS[melodic].count];
 }
 
-static uint32_t sound_knob_max(uint32_t melodic, uint32_t knob)   /* WAVE is one of the waves, the rest 0..100 */
+static uint32_t sound_knob_max(uint32_t melodic, uint32_t knob)   /* WAVE and OSC2 are one of theirs, the rest 0..100 (the pad's OSC2 knobs: none) */
 {
-    return melodic != MELODIC_PAD && knob == 0u ? SYNTH_WAVE_COUNT - 1u : SYNTH_PARAMETER_MAX;
+    if (melodic == MELODIC_PAD) return knob == SOUND_KNOB_OSC2 || knob == SOUND_KNOB_OSC2_LEVEL ? 0u : SYNTH_PARAMETER_MAX;
+    return knob == SOUND_KNOB_WAVE ? SYNTH_WAVE_COUNT - 1u : knob == SOUND_KNOB_OSC2 ? SYNTH_OSC2_COUNT - 1u : SYNTH_PARAMETER_MAX;
 }
 
 static void sound_apply(uint32_t melodic, uint32_t choice)   /* the track's sound is that one now */
@@ -383,7 +401,7 @@ static void empty_song(void)
     for (index = 0; index < PATTERN_COUNT; index++) {
         for (track = 0; track < sizeof song.patterns[index].bar_totals; track++)
             song.patterns[index].bar_totals[track] = 1;
-        mixer_levels_full(&song.patterns[index]);
+        pattern_defaults(&song.patterns[index]);
     }
     for (track = 0; track < MELODIC_COUNT; track++)
         sound_apply(track, 0);
@@ -395,6 +413,14 @@ static void empty_song(void)
     song.echo[MELODIC_LEAD] = 50;
     song.tempo = 138;
     song.reverb = 35;
+    for (track = 0; track < MELODIC_COUNT; track++) song.lfos[track].rate = LFO_RATE_DEFAULT;   /* (DEPTH 0: the LFOs do nothing) */
+    song.drone_note = DRONE_NOTE_KEY + 1u;      /* (LEVEL 0: no drone; given one, the key's root in octave 2, dark, breathing) */
+    song.drone_tone = 50;
+    song.drone_swell = 50;
+    song.echo_time = 2u;                        /* the echo: a dotted eighth, its FEEDBACK as it always was (61: 140 of 256), */
+    song.echo_feedback = 61;
+    song.echo_width = ECHO_PARAMETER_MAX; /* side to side (a ping-pong), a little darker each time */
+    song.echo_tone = 30;
 }
 
 static int song_has_chain(void)                 /* a place of the song's chain holds a pattern */
@@ -546,6 +572,11 @@ static void pattern_copy_bar(volatile pattern_t *pattern, uint32_t track, uint32
     pattern->accents[track][to_bar] = pattern->accents[track][from_bar];
 }
 
+static int lfo_valid(const volatile lfo_t *checked)
+{
+    return checked->rate < LFO_RATE_COUNT && checked->depth <= LFO_DEPTH_MAX && checked->target < LFO_TARGET_COUNT && checked->shape < LFO_SHAPE_COUNT;
+}
+
 static int pattern_valid(const volatile pattern_t *checked)
 {
     uint32_t track, melodic, bar, step;
@@ -559,7 +590,12 @@ static int pattern_valid(const volatile pattern_t *checked)
                                            : note_gate(checked->gates[melodic][bar], step) > GATE_TENTHS_MAX) return 0;
     for (track = 0; track < sizeof checked->mixer_levels; track++)
         if (checked->mixer_levels[track] > MIX_MAX) return 0;
-    return checked->arp_mode <= ARP_MODE_MAX && name_valid(checked->name) && checked->mixer_mutes >> sizeof checked->mixer_levels == 0u;
+    for (melodic = 0; melodic < MELODIC_COUNT; melodic++)
+        if (!lfo_valid(&checked->lfos[melodic])) return 0;
+    if (checked->gen_change > GEN_PARAMETER_MAX || checked->gen_notes > GEN_NOTES_MAX || checked->gen_density > GEN_PARAMETER_MAX
+        || checked->gen_length < 1u || checked->gen_length > GEN_LENGTH_MAX) return 0;
+    return checked->arp_mode <= ARP_MODE_MAX && name_valid(checked->name) && checked->mixer_mutes >> sizeof checked->mixer_levels == 0u
+           && checked->lfo_own >> MELODIC_COUNT == 0u;
 }
 
 static int song_valid(const volatile song_t *checked)
@@ -568,7 +604,7 @@ static int song_valid(const volatile song_t *checked)
     for (melodic = 0; melodic < MELODIC_COUNT; melodic++) {
         if (checked->cutoff[melodic] > SYNTH_PARAMETER_MAX || checked->decay[melodic] > SYNTH_PARAMETER_MAX
             || checked->echo[melodic] > ECHO_SEND_MAX || checked->sound_choices[melodic] >= sound_count(melodic)
-            || checked->levels[melodic] > MIX_MAX) return 0;
+            || checked->levels[melodic] > MIX_MAX || !lfo_valid(&checked->lfos[melodic])) return 0;
         for (knob = 0; knob < SOUND_KNOBS; knob++)
             if (checked->sounds[melodic][knob] > sound_knob_max(melodic, knob)) return 0;
     }
@@ -581,6 +617,10 @@ static int song_valid(const volatile song_t *checked)
     for (index = 0; index < 1u + MELODIC_COUNT; index++)
         if (checked->pans[index] > MIX_MAX || checked->reverb_sends[index] > MIX_MAX) return 0;
     if (checked->drum_echo > ECHO_SEND_MAX) return 0;
+    if (checked->echo_time >= ECHO_TIMES || checked->echo_feedback > ECHO_PARAMETER_MAX || checked->echo_width > ECHO_PARAMETER_MAX
+        || checked->echo_tone > ECHO_PARAMETER_MAX) return 0;
+    if (checked->drone_level > MIX_MAX || checked->drone_note > DRONE_NOTE_MAX || checked->drone_tone > SYNTH_PARAMETER_MAX
+        || checked->drone_swell > SYNTH_PARAMETER_MAX) return 0;
     return checked->tempo >= TEMPO_MIN && checked->tempo <= TEMPO_MAX && checked->reverb <= REVERB_MAX && name_valid(checked->name);
 }
 

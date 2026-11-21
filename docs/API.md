@@ -191,7 +191,7 @@ IN (its pin is a key-matrix row there): `midi_get` returns only 1 on it.
 ```c
 static int settings_load(void *p, uint32_t n);         /* 0 = loaded; else *p is left alone */
 static int settings_save(const void *p, uint32_t n);   /* 0 = saved */
-static int blob_load(uint32_t i, void *p, uint32_t n);         /* blob i of NBLOB (8): one sector each */
+static int blob_load(uint32_t i, void *p, uint32_t n);         /* blob i of NBLOB (8): BLOB_SECT (2) sectors each */
 static int blob_save(uint32_t i, const void *p, uint32_t n);
 static int slot_load(uint32_t i, void *p, uint32_t n);         /* slot i of NSLOT (8): SLOT_SECT (4) sectors each */
 static int slot_save(uint32_t i, const void *p, uint32_t n);
@@ -199,8 +199,8 @@ static int slot_save(uint32_t i, const void *p, uint32_t n);
 
 | | how much | where (FM-1) | where (SMK-37) |
 | --- | --- | --- | --- |
-| settings | up to `SECTOR_MAX` (4084 B) | 0xFC000 | 0x9D000 |
-| blobs 0..7 (presets, patterns) | up to 4084 B each | 0xF4000.. | 0x9E000.. |
+| settings | up to `BLOB_MAX` (8180 B) | 0xB7000 | 0x9D000 |
+| blobs 0..7 (presets, patterns) | up to 8180 B each | 0xB9000.. | 0x9F000.. |
 | slots 0..7 (songs, samples) | up to `SLOT_MAX` (16372 B) each | 0x97000.. | 0xC2000.. |
 
 Each is kept with a magic, its length and a CRC32 ([store.h](../firmware/src/store.h)). A change of size, another
@@ -208,7 +208,7 @@ firmware's data or a broken save reads as "nothing saved": start from your defau
 `blob_load` leave `p` alone when they fail; `slot_load` reads straight into `p` (no buffer that big), so on -1 it holds
 rubbish. Give your fork its own `STORE_MAGIC` (store.h), so it never takes another Dinghy fork's data for its own.
 
-**Save when nothing sounds.** Erasing holds the interrupts off for some 50 ms a sector (a slot: four): the sound
+**Save when nothing sounds.** Erasing holds the interrupts off for some 50 ms a sector (settings, a blob: two; a slot: four): the sound
 drops out. `dinghy.c` saves 2 s after the last change, once all voices are silent. Flash wears out after about
 100,000 erases of a sector: never save in a loop.
 

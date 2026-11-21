@@ -30,10 +30,15 @@ something, and once you set a key for your song, they also show you which notes 
 - **Eight patterns, A to H.** Each track has 1 to 4 bars of 16 steps of its own. A pattern lasts as long as its
   longest track, and the shorter ones repeat. So a one-bar beat under a four-bar bass line just works.
 - **A chain** of 16 slots that plays your patterns one after the other. Or you just loop the pattern on the screen.
-- **Sounds:** each melodic track comes with a few named sounds (BASS: PLUCK, SUB, ACID, REESE; ARP: PLUCK, SQUARE,
-  SAW, SOFT; PAD: WARM, BRIGHT, SLOW; LEAD: SUPERSAW, SQUARE, SOFT), a page of knobs to shape them, and two slots of
-  your own (USER1, USER2) that every song can use.
-- **A mixer:** level, pan, a tempo-synced echo and a reverb for each track (and each drum), with a limiter that
+- **Sounds:** each melodic track comes with a few named sounds (BASS: PLUCK, SUB, ACID, REESE, MOOG; ARP: PLUCK,
+  SQUARE, SAW, SOFT, SEQ; PAD: WARM, BRIGHT, SLOW, DEEP; LEAD: SUPERSAW, SQUARE, SOFT, MONO), two pages of knobs to
+  shape them (with a sub-oscillator, a second oscillator and glide), and two slots of your own (USER1, USER2) that
+  every song can use.
+- **An LFO per track** that sweeps the cutoff, the pitch or the level in time with the song, over up to 16 bars.
+  Every pattern can have its own.
+- **A drone:** one deep, slowly breathing note under the whole song, on the key's root or following the pad's chords.
+- **GEN:** the arpeggiator can play itself, a loop of notes in your chords or key that slowly changes.
+- **A mixer:** level, pan, a tempo-synced stereo echo and a reverb for each track (and each drum), with a limiter that
   keeps the sum clean. On top of that, **every pattern has a mix of its own**. Mute the pad for the part where the
   arpeggio should play alone, or bring a track down in one part only.
 - **Mutes** for jamming: drop a track out and bring it back while the song plays.
@@ -73,7 +78,8 @@ installs from there. And as always: installing firmware is at your own risk.
    the bar on the screen. Tap one to put your last note there. Tap it again to take it away.
 4. **OCT+** goes to the next bar. On the last bar, with EDIT on, it adds a new one.
 5. **FX** opens the bass's sound page. Turn **ALGORITHM** for another sound, and the four knobs to shape it. Press
-   **FX** again for its mix (level, pan, reverb, echo).
+   **FX** again for its OSC page (more about it in [Sounds](#sounds)), and once more for its mix (level, pan, reverb,
+   echo).
 6. Press **SEL**, then the black key one octave above OP1. The drums are muted. Do it again, and they're back.
 
 ## Finding your way around
@@ -94,7 +100,8 @@ The knobs, SEQ and REC all wait for it. Without EDIT, you can only play, move ar
 Getting around:
 
 - **HOME** takes you to the JUICY screen, and back to the track.
-- **FX** flips through a track's pages: its notes, its sound (not on DRUMS) and its mix.
+- **FX** flips through a track's pages: its notes, its sound, its OSC page (those two not on DRUMS) and its mix.
+- **LFO** opens the LFO page of BASS, ARP, PAD or LEAD. LFO or FX takes you back.
 - **PRESETS** (the knob) picks the pattern, A to H, on every screen.
 - **OCT- / OCT+** go to the bar before and the next bar (when you let go).
 - **SAVE** opens SONGS, then the LIBRARY, then takes you back.
@@ -202,7 +209,7 @@ ARP plays the chord the PAD sounds, one note at a time.
   you place it. LENGTH works as it does on BASS. When you record, any key puts a hit at the cursor.
 - **Each hit plays the next note of the chord** (its one to four notes from the root, from C3 up), in the order
   **MODE** (KNOB1) says: UP, DOWN, UP/DN (up and back down) or RAND, over 1, 2 or 3 octaves. Each pattern has its own
-  MODE.
+  MODE. The last MODE, **GEN**, makes up its own notes (see [GEN](#gen-an-arpeggio-that-plays-itself)).
 - **A chord on the PAD starts it over** from its first note. Hold a chord on the PAD's keys while the song plays, and
   ARP follows that chord until you let go.
 - **No chord, no arpeggio.** While the PAD has no chord (an empty pad track, or a pattern without one), ARP is
@@ -220,6 +227,29 @@ To set the tones, switch EDIT on and put the cursor on a hit. KNOB1 is now its T
 MODE). A new hit gets the last tone you used. The keys of the chord are lit: play one, and the next hit gets that
 tone. While recording, it goes straight to the cursor (or lands live). Other keys only sound. The roll draws each hit
 at its tone's height, with 1 at the bottom. If you switch to another MODE, the tones stay; they're just not used.
+
+### GEN: an arpeggio that plays itself
+
+The last MODE is **GEN**. Here the ARP doesn't play your hits at all: it plays a loop of notes it makes up by itself,
+one per 16th, and changes it a little now and then. It's the hypnotic kind of sequence that repeats long enough for
+you to get lost in it, but never stays quite the same.
+
+Press **ARP** (the button) on the ARP track to get to its GEN page, and ARP or FX to get back. With EDIT on, **REC**
+switches GEN on (MODE GEN) and off again (MODE UP 1). The knobs:
+
+- **CHANGE:** how likely a step of the loop gets a new note each time it comes round. At 0, the loop is locked and
+  repeats forever. At 100, it's a new melody all the time. Somewhere around 5 to 15 it drifts slowly.
+- **NOTES:** CHORD 1 to 3 takes the notes of the chord ARP plays over (so it's always in tune, and silent without a
+  chord, like ARP), over 1 to 3 octaves. SCALE 1 to 3 takes the notes of the song's key instead (with KEY OFF, A
+  minor), which is a bit more melodic.
+- **DENSITY:** how many steps play. Turn it down for more air between the notes. The notes that stay are the same ones,
+  so you can thin the loop out and bring it back.
+- **LENGTH:** how many steps the loop has, 1 to 16. Try 5 or 7: the loop then runs against the bar and lines up again
+  only every few bars.
+
+The picture shows the loop: a bar per step (higher is a higher note), a dot for a rest, the one playing in orange.
+Every pattern has its own GEN settings, so the intro can be calm and the drop busy. The loop itself isn't saved: every
+time you switch the FM-1 on, it makes up a new one.
 
 ### Bass lines and ARP rhythms
 
@@ -288,17 +318,70 @@ previous sound. The knobs are WAVE, RESO, ATTACK and ENV (on the pad: SPREAD, RE
 the name means you changed it. With EDIT on, **SEQ** keeps the sound as USER1 and **REC** as USER2 (each one asks
 twice). The keys always play here.
 
+Press **FX** once more for the **OSC** page. This is where a sound gets thick:
+
+- **SUB:** a square wave one octave below the note. Turn it up for a bass that you feel more than hear.
+- **OSC2** and **LEVEL:** a second oscillator next to the first, with the same wave. DETUNE puts it a little higher, so
+  the two beat slowly against each other. OCT -1, FIFTH and OCT +1 put it an octave down, a fifth up or an octave up.
+  LEVEL is how much of it you hear (0: none).
+- **GLIDE:** when a note comes while the one before still sounds, it slides over instead of jumping. Nice on
+  basslines with long notes, and on hypnotic sequences.
+
+The pad has SUB and GLIDE too. With GLIDE, each note of a chord slides to its place in the next chord, which makes
+chord changes melt into each other. Try the pad's DEEP sound, it does all of that. Whatever you add, the sound stays
+about as loud as before.
+
+### Movement: the LFO
+
+Every melodic track has an LFO: a slow wave that moves its sound while it plays. It's what makes a pad breathe or a
+bass line slowly open up over a few bars. Press **LFO** on BASS, ARP, PAD or LEAD to get to its page. With EDIT on,
+the knobs are:
+
+- **RATE:** how long one wave takes, from 1/4 bar to 16 bars. It runs in time with the song, so a 4-bar sweep always
+  starts on bar 1.
+- **DEPTH:** how much it moves. 0 switches it off, which is where every track starts.
+- **TARGET:** what it moves: the CUTOFF, the PITCH (low DEPTH is a gentle vibrato, high DEPTH a siren) or the LEVEL.
+- **SHAPE:** SINE, TRIANGLE, SAW UP, SAW DOWN, SQUARE, RANDOM (a new value every wave) or DRIFT (glides from one
+  random value to the next, never quite the same twice).
+
+The picture on the page shows the wave as deep as you've set it. The keys play here, so you can hear it while you
+turn.
+
+By default, the LFO is the song's: every pattern plays it the same way. If one pattern needs something else (a faster
+wobble in the drop, say), press **REC** with EDIT on. That pattern gets an LFO of its own, starting as a copy of the
+song's, and the page says so in orange. Press **REC** again and the pattern goes back to the song's LFO.
+
 ### Mixing
 
-- **A track's mix page** (FX twice on a track, or once on DRUMS): KNOB1 to KNOB4 are LEVEL, PAN, REVERB and ECHO,
+- **A track's mix page** (FX three times on a track, or once on DRUMS): KNOB1 to KNOB4 are LEVEL, PAN, REVERB and ECHO,
   with a bar for each. On DRUMS, there's one per drum, and LEVEL is the selected drum's (a key or SELECT picks the
   drum). The keys always play here. This mix is the same in every pattern.
-- **The pattern's MIXER** (FX twice on JUICY): the pattern on the screen gets its own mix, with a row per track. SELECT
-  picks the track (the orange row), and KNOB1 sets its LEVEL in this pattern, from 0 to 100 (with EDIT), on top of
-  the track's own level. With EDIT on, the lower keys 1 to 5 (DRUMS, BASS, ARP, PAD, LEAD) **mute** that track in this
-  pattern only, or bring it back. Lit means it plays, and a muted row is dark. The mix travels with the pattern into
+- **The pattern's MIXER** (FX twice on JUICY): the pattern on the screen gets its own mix, with a row per track and
+  one for the drone. SELECT picks the row (the orange one), and KNOB1 sets its LEVEL in this pattern, from 0 to 100
+  (with EDIT), on top of the track's own level. With EDIT on, the lower keys 1 to 6 (DRUMS, BASS, ARP, PAD, LEAD,
+  DRONE) **mute** that one in this pattern only, or bring it back. Lit means it plays, and a muted row is dark. The mix travels with the pattern into
   copies and into the library.
 - **On JUICY**, KNOB1 is the TEMPO and KNOB2 the REVERB.
+- **The echo** (FX four times on JUICY): every track's ECHO send goes into one echo, and this page shapes it. With
+  EDIT on, **TIME** is how long until it comes back (1/16 to a dotted 1/4, always in time with the tempo, up to a
+  second), **REPEATS** how often it comes back (0: once, 100: nearly forever), **WIDTH** how far it spreads (0: in the
+  middle, 100: bouncing from left to right and back, a ping-pong), and **TONE** how much darker each repeat gets, like
+  an old tape echo. The picture shows the repeats: the left side's up, the right side's down.
+
+### The drone
+
+A drone is one deep note that's held under the whole song, the kind of thing that makes a few loops feel like a
+place. Press **FX** three times on JUICY to get to the DRONE page. With EDIT on:
+
+- **LEVEL:** how loud it is. 0 means no drone, which is where a song starts.
+- **NOTE:** KEY 1 to 3 holds the root of the song's key (see [The song's key](#the-songs-key); with KEY OFF, it's an
+  A) in octave 1, 2 or 3. CHORD 1 to 3 follows the root of the pad's chords instead, and glides from one to the next.
+- **TONE:** how bright it is.
+- **SWELL:** how much it breathes. It drifts up and down by itself over many bars, never quite the same way twice.
+
+The drone plays while the song plays. It fades in when you press PLAY and fades out when you stop, so it never
+starts or ends with a click. Want it in the intro and the break but not in the drop? Mute it in those patterns'
+MIXER (key 6), see [Mixing](#mixing).
 
 ### Undo
 
@@ -353,14 +436,16 @@ PRESETS or press SEQ or REC to stop, and your song is exactly as it was.
 | **PLAY** | start and stop, any time. On SONGS and LIBRARY: listen to the selected slot |
 | **HOME** | the JUICY screen, and back to the track |
 | **SAVE** | SONGS, then LIBRARY, then back |
-| **FX** | a track's pages: its notes, its sound (not DRUMS), its mix. On JUICY: NAMES, the pattern's MIXER, and back |
+| **FX** | a track's pages: its notes, its sound and OSC pages (not DRUMS), its mix. On JUICY: NAMES, the pattern's MIXER, the DRONE, the ECHO, and back |
+| **LFO** | the LFO page of BASS, ARP, PAD or LEAD, and back |
+| **ARP** | on ARP: its GEN page, and back |
 | **OCT- / OCT+** | the bar before / the next bar. With EDIT on a track: OCT+ past the last bar adds one, holding OCT+ adds a copy, holding OCT- removes the bar. While recording: the keys an octave down / up |
 | **PRESETS** | the pattern, A to H |
 | **SEQ** | with EDIT: the chain on or off |
-| **REC** | with EDIT: recording on or off (JUICY: copy the pattern). Held: clear |
+| **REC** | with EDIT: recording on or off (JUICY: copy the pattern; LFO page: the pattern's own LFO, or the song's again; GEN page: GEN on or off). Held: clear |
 | **GLO** | undo, and again: redo |
 | **ALGORITHM** | with EDIT: the next sound (sound page), a bass line or an ARP rhythm |
-| **SELECT** | the drum (DRUMS), the cursor (BASS, ARP, PAD, LEAD), the track (MIXER), the cursor (NAMES) |
+| **SELECT** | the drum (DRUMS), the cursor (BASS, ARP, PAD, LEAD), the row (MIXER), the cursor (NAMES) |
 | **MASTER** | the FM-1's volume |
 
 ### The screens
@@ -370,12 +455,17 @@ PRESETS or press SEQ or REC to stop, and your song is exactly as it was.
 | **JUICY** | TEMPO | REVERB | SWING | KEY |
 | **NAMES** (FX on JUICY) | LETTER | | | |
 | **MIXER** (FX twice on JUICY) | LEVEL | | | |
+| **DRONE** (FX three times on JUICY) | LEVEL | NOTE | TONE | SWELL |
+| **ECHO** (FX four times on JUICY) | TIME | REPEATS | WIDTH | TONE |
 | **DRUMS** | GROOVE | | | (the groove's usual BPM) |
 | **BASS, LEAD** | NOTE | CUTOFF | DECAY | LENGTH |
 | **ARP** | MODE (TONES: the hit's TONE) | CUTOFF | DECAY | LENGTH |
 | **PAD** | NOTE | CUTOFF | CHORD | CHORDS (progressions) |
 | **Sound page** | WAVE (PAD: SPREAD) | RESO | ATTACK | ENV (PAD: RELEASE) |
+| **OSC page** | SUB | OSC2 (not PAD) | LEVEL (OSC2's, not PAD) | GLIDE |
 | **Mix page** | LEVEL | PAN | REVERB | ECHO |
+| **LFO page** | RATE | DEPTH | TARGET | SHAPE |
+| **GEN page** (ARP on ARP) | CHANGE | NOTES | DENSITY | LENGTH |
 | **SONGS** | the slot | STYLE (on NEW) | | |
 | **LIBRARY** | the slot | | | |
 

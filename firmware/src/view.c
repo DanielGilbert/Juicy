@@ -29,12 +29,12 @@ static void light_keys(pass_t *pass)
     } else if (pass->page == PAGE_NAMING) {     /* the lower keys are the names' places, the song's then the pattern's: the cursor's lit */
         for (step = 0; step < 2u * NAME_LENGTH; step++) pass->keys_glowing |= 1u << STEP_KEYS[step];
         pass->keys_lit = 1u << STEP_KEYS[ui.naming_cursor];
-    } else if (pass->page == PAGE_MIXER) {      /* the lower keys 1 .. 5 are the tracks (EDIT: they mute), lit where the track plays in the pattern */
-        for (track = 0; track < TRACK_COUNT; track++) {
+    } else if (pass->page == PAGE_MIXER) {      /* the lower keys 1 .. 6 are the tracks and the drone (EDIT: they mute), lit where it plays in the pattern */
+        for (track = 0; track < MIXER_TRACKS; track++) {
             pass->keys_glowing |= 1u << STEP_KEYS[track];
             if (!(pass->pattern->mixer_mutes >> track & 1u)) pass->keys_lit |= 1u << STEP_KEYS[track];
         }
-    } else if (pass->page == PAGE_SONGS) {      /* no key does anything */
+    } else if (pass->page == PAGE_SONGS || pass->page == PAGE_DRONE || pass->page == PAGE_ECHO) {   /* no key does anything */
     } else if (pass->page == PAGE_LIBRARY) {    /* the lower keys are the places, lit where there is a pattern */
         for (step = 0; step < LIBRARY_PLACES; step++) {
             pass->keys_glowing |= 1u << STEP_KEYS[step];
@@ -128,10 +128,15 @@ static void light_up(pass_t *pass)
         fm1_led_key(KEY_LED(key), pass->keys_lit >> key & 1u);
     }
     fm1_led_key(BTN_PLAY, playing && pass->step_now % 4u == 0u);   /* playing: lit on each beat's first step, the beat */
-    fm1_led_key(BTN_HOME, pass->page == PAGE_GLOBAL || pass->page == PAGE_NAMING || pass->page == PAGE_MIXER);
+    fm1_led_key(BTN_HOME, pass->page == PAGE_GLOBAL || pass->page == PAGE_NAMING || pass->page == PAGE_MIXER || pass->page == PAGE_DRONE || pass->page == PAGE_ECHO);
     fm1_led_key(BTN_SAVE, pass->page == PAGE_SONGS || pass->page == PAGE_LIBRARY);
     fm1_led_key_glow(BTN_FX, pass->page < TRACK_COUNT || pass->page == PAGE_GLOBAL);   /* a track's (JUICY's) other pages are there */
-    fm1_led_key(BTN_FX, pass->sound_page || pass->mix_page || pass->page == PAGE_NAMING || pass->page == PAGE_MIXER);
+    fm1_led_key(BTN_FX, pass->sound_page || pass->mix_page || pass->page == PAGE_NAMING || pass->page == PAGE_MIXER || pass->page == PAGE_DRONE
+                        || pass->page == PAGE_ECHO);
+    fm1_led_key_glow(BTN_LFO, pass->page >= MELODIC_FIRST_PAGE && pass->page < TRACK_COUNT);   /* a melodic track's LFO page is there */
+    fm1_led_key(BTN_LFO, pass->lfo_page);
+    fm1_led_key_glow(BTN_ARP, pass->page == MELODIC_FIRST_PAGE + MELODIC_ARP);   /* ARP's GEN page is there */
+    fm1_led_key(BTN_ARP, pass->gen_page);
     fm1_led_key(BTN_SEQ, chain_on != 0);
     fm1_led_key_glow(BTN_SEQ, pass->page == PAGE_SONGS ? ui.places_with_song >> ui.selected_place & 1u
                               : pass->page == PAGE_LIBRARY ? ui.places_with_pattern >> ui.selected_library_place & 1u : ui.edit_on != 0);
@@ -152,7 +157,7 @@ static void body_clear(void)                    /* the page's body black, each p
     uint32_t row;
     lcd_fill(0, BODY_TOP, 240, BODY_HEIGHT, C_BLACK);
     for (row = 0; row < DRUM_COUNT; row++) ui.mix_drawn[row] = 0;
-    ui.roll_drawn = ui.roll_marker_drawn = ui.chain_drawn = ui.songs_drawn = ui.library_drawn = ui.sound_drawn = ui.naming_drawn = ui.mixer_hint_drawn = 0;
+    ui.roll_drawn = ui.roll_marker_drawn = ui.chain_drawn = ui.songs_drawn = ui.library_drawn = ui.sound_drawn = ui.lfo_drawn = ui.gen_drawn = ui.drone_drawn = ui.echo_drawn = ui.naming_drawn = ui.mixer_hint_drawn = 0;
     for (row = 0; row < DRUMS_PER_PAGE; row++) ui.drum_row_drawn[row] = 0;
 }
 
@@ -164,7 +169,7 @@ static uint32_t page_hints(const pass_t *pass, const char *hints[ROLL_HINTS])
     static const char *const TAP_HINTS[TRACK_COUNT] = {"TAP A STEP: A HIT", "TAP A STEP: A NOTE", "TAP A STEP: A HIT", "TAP A STEP: A CHORD", "TAP A STEP: A NOTE"};
     static const char *const MORE_HINTS[TRACK_COUNT] = {"KNOB1: A GROOVE", "ALGORITHM: A BASS LINE", "ALGORITHM: A RHYTHM", "KNOB4: A PROGRESSION", "HOLD A STEP: ACCENT"};
     hints[0] = hints[1] = hints[2] = 0;
-    if (pass->page >= TRACK_COUNT || pass->sound_page || pass->mix_page || !track_empty(pass->pattern, pass->page)) return 1u;
+    if (pass->page >= TRACK_COUNT || pass->sound_page || pass->mix_page || pass->lfo_page || pass->gen_page || !track_empty(pass->pattern, pass->page)) return 1u;
     if (ui.recording_on) {
         hints[0] = "THE KEYS RECORD";
         hints[1] = playing ? "WHERE THE SONG IS" : "AT THE CURSOR";
@@ -190,8 +195,9 @@ static void draw_screen(pass_t *pass)
     uint32_t knob;
     const char *hints[ROLL_HINTS];
     /* the screen: only what changed. Each *_drawn holds what is on the screen (+ 1, so 0 means "draw it") */
-    if (pass->page + (pass->sound_page ? 16u : 0u) + (pass->mix_page ? 32u : 0u) != ui.page_drawn) {   /* (a sound or mix page is a page of its own) */
-        ui.page_drawn = pass->page + (pass->sound_page ? 16u : 0u) + (pass->mix_page ? 32u : 0u);
+    state = pass->page + (pass->sound_page ? 16u : 0u) + (pass->mix_page ? 32u : 0u) + (pass->lfo_page ? 64u : 0u) + (pass->osc_page ? 128u : 0u) + (pass->gen_page ? 256u : 0u);
+    if (state != ui.page_drawn) {               /* (a sound, OSC, mix, LFO or GEN page is a page of its own) */
+        ui.page_drawn = state;
         body_clear();
         ui.header_drawn = ui.overlay_drawn = 0;
         ui.drum_pages_drawn = 0;
@@ -258,14 +264,27 @@ static void draw_screen(pass_t *pass)
             ui.naming_drawn = state;
             draw_naming(pass->pattern->name, ui.shown_pattern, ui.naming_cursor);
         }
-    } else if (pass->page == PAGE_MIXER) {      /* a row per track: its level in the pattern, dark where muted there, the selected orange */
+    } else if (pass->page == PAGE_DRONE) {
+        const uint32_t follows_chords = song.drone_note >= DRONE_NOTE_CHORD;
+        state = 1u + (drone_note_for(12u) | follows_chords << 7 | (uint32_t)(song.drone_level != 0u) << 8);
+        if (state != ui.drone_drawn) {
+            ui.drone_drawn = state;
+            draw_drone(drone_note_for(12u), follows_chords != 0u, song.drone_level);
+        }
+    } else if (pass->page == PAGE_ECHO) {
+        state = 1u + (song.echo_feedback | (uint32_t)song.echo_width << 8);
+        if (state != ui.echo_drawn) {
+            ui.echo_drawn = state;
+            draw_echo(song.echo_feedback, song.echo_width);
+        }
+    } else if (pass->page == PAGE_MIXER) {      /* a row per track and the drone: its level in the pattern, dark where muted there, the selected orange */
         uint32_t track;
-        for (track = 0; track < TRACK_COUNT; track++) {
+        for (track = 0; track < MIXER_TRACKS; track++) {
             const uint32_t level = pass->pattern->mixer_levels[track], pattern_muted = pass->pattern->mixer_mutes >> track & 1u;
             state = 1u + (level | (uint32_t)(track == ui.mixer_track) << 8 | pattern_muted << 9);
             if (state != ui.mix_drawn[track]) {
                 ui.mix_drawn[track] = state;
-                draw_mix_row(track, PAGE_NAMES[track], level, 0, track == ui.mixer_track, pattern_muted != 0u);
+                draw_mix_row(track, MIXER_ROW_HEIGHT, track == DRONE_MIXER_TRACK ? "DRONE" : PAGE_NAMES[track], level, 0, track == ui.mixer_track, pattern_muted != 0u);
             }
         }
         state = 1u + (ui.shown_pattern | ui.edit_on << 4);
@@ -297,14 +316,31 @@ static void draw_screen(pass_t *pass)
             state = 1u + (value | (uint32_t)selected << 8);
             if (state != ui.mix_drawn[row]) {
                 ui.mix_drawn[row] = state;
-                draw_mix_row(row, pass->page == PAGE_DRUMS ? DRUM_NAMES[row] : MIX_NAMES[row], value, pass->page != PAGE_DRUMS && row == 1u, selected, 0);
+                draw_mix_row(row, MIX_ROW_HEIGHT, pass->page == PAGE_DRUMS ? DRUM_NAMES[row] : MIX_NAMES[row], value, pass->page != PAGE_DRUMS && row == 1u, selected, 0);
             }
+        }
+    } else if (pass->gen_page) {                /* (drawn again when a step of the loop plays or changes) */
+        const uint32_t on = pass->pattern->arp_mode == ARP_MODE_GEN, place = playing ? gen_place : GEN_LENGTH_MAX;
+        uint32_t step;
+        state = 1u + (place | pass->pattern->gen_length << 5 | (uint32_t)pass->pattern->gen_density << 10 | on << 17 | ui.edit_on << 18);
+        for (step = 0; step < GEN_LENGTH_MAX; step++) state = state * 31u + gen_values[step];
+        if (state != ui.gen_drawn) {
+            ui.gen_drawn = state;
+            draw_gen(gen_values, pass->pattern->gen_length, pass->pattern->gen_density, place, on != 0u, ui.edit_on != 0);
+        }
+    } else if (pass->lfo_page) {
+        const volatile lfo_t *lfo = lfo_of(pass->pattern, pass->melodic);
+        const uint32_t own = pass->pattern->lfo_own >> pass->melodic & 1u;
+        state = 1u + (ui.shown_pattern | own << 3 | ui.edit_on << 4 | (uint32_t)lfo->shape << 5 | (uint32_t)lfo->depth << 8);
+        if (state != ui.lfo_drawn) {
+            ui.lfo_drawn = state;
+            draw_lfo(ui.shown_pattern, own != 0u, ui.edit_on != 0, lfo->shape, lfo->depth);
         }
     } else if (pass->sound_page) {
         state = 1u + (song.sound_choices[pass->melodic] | (uint32_t)sound_edited(pass->melodic) << 4 | ui.sound_note << 5);
         if (state != ui.sound_drawn) {
             ui.sound_drawn = state;
-            draw_sound(pass->melodic, sound_edited(pass->melodic), ui.sound_note);
+            draw_sound(pass->osc_page ? "OSC" : "SOUND", pass->melodic, sound_edited(pass->melodic), ui.sound_note);
         }
     } else {
         state = 1u + (ui.shown_bar | pass->shown_note << 4 | ui.roll_lowest_notes[pass->melodic] << 12 | ui.shown_pattern << 20 | ui.cursor_steps[pass->melodic] << 23);   /* (a changed step sets roll_drawn to 0) */
@@ -337,8 +373,8 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
     static const char *const LIBRARY_LABELS[KNOB_COUNT] = {"PLACE", "", "", ""};
     static const char *const NAMING_LABELS[KNOB_COUNT] = {"LETTER", "", "", ""};
     static const char *const MIXER_LABELS[KNOB_COUNT] = {"LEVEL", "", "", ""};
-    static const char *const SYNTH_SOUND_LABELS[KNOB_COUNT] = {"WAVE", "RESO", "ATTACK", "ENV"};
-    static const char *const PAD_SOUND_LABELS[KNOB_COUNT] = {"SPREAD", "RESO", "ATTACK", "RELEASE"};
+    static const char *const SYNTH_SOUND_LABELS[SOUND_KNOBS] = {"WAVE", "RESO", "ATTACK", "ENV", "SUB", "OSC2", "LEVEL", "GLIDE"};
+    static const char *const PAD_SOUND_LABELS[SOUND_KNOBS] = {"SPREAD", "RESO", "ATTACK", "RELEASE", "SUB", "", "", "GLIDE"};
     const uint32_t page = pass->page, melodic = pass->melodic;
     const int pad_shown = page == MELODIC_FIRST_PAGE + MELODIC_PAD, arp_shown = page == MELODIC_FIRST_PAGE + MELODIC_ARP;
     view->text = view->number;
@@ -353,11 +389,31 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
             view->number[0] = view->value < MIX_MAX / 2u ? 'L' : 'R';
             format_number(view->number + 1, view->value < MIX_MAX / 2u ? MIX_MAX / 2u - view->value : view->value - MIX_MAX / 2u);
         } else format_number(view->number, view->value);
-    } else if (pass->sound_page) {              /* the sound's knobs; WAVE a word */
-        view->label = pad_shown ? PAD_SOUND_LABELS[knob] : SYNTH_SOUND_LABELS[knob];
-        view->value = song.sounds[melodic][knob];
-        if (!pad_shown && knob == 0u) {
-            view->text = WAVE_NAMES[view->value];
+    } else if (pass->gen_page) {                /* the pattern's GEN: CHANGE, NOTES (a word), DENSITY, LENGTH */
+        static const char *const GEN_LABELS[KNOB_COUNT] = {"CHANGE", "NOTES", "DENSITY", "LENGTH"};
+        const uint32_t values[KNOB_COUNT] = {pass->pattern->gen_change, pass->pattern->gen_notes, pass->pattern->gen_density, pass->pattern->gen_length};
+        view->label = GEN_LABELS[knob];
+        view->value = values[knob];
+        view->big = knob != 1u;
+        if (knob == 1u) view->text = GEN_NOTES_NAMES[view->value];
+        else format_number(view->number, view->value);
+    } else if (pass->lfo_page) {                /* the LFO it plays with in the pattern on the screen: DEPTH a number, the rest words */
+        static const char *const LFO_LABELS[KNOB_COUNT] = {"RATE", "DEPTH", "TARGET", "SHAPE"};
+        const volatile lfo_t *lfo = lfo_of(pass->pattern, melodic);
+        const uint32_t values[KNOB_COUNT] = {lfo->rate, lfo->depth, lfo->target, lfo->shape};
+        view->label = LFO_LABELS[knob];
+        view->value = values[knob];
+        view->big = knob == 1u;
+        if (knob == 0u) view->text = LFO_RATE_NAMES[view->value];
+        else if (knob == 2u) view->text = LFO_TARGET_NAMES[view->value];
+        else if (knob == 3u) view->text = LFO_SHAPE_NAMES[view->value];
+        else format_number(view->number, view->value);
+    } else if (pass->sound_page) {              /* the sound's knobs, four a page; WAVE and OSC2 words */
+        const uint32_t sound_knob = (pass->osc_page ? SOUND_PAGE_KNOBS : 0u) + knob;
+        view->label = pad_shown ? PAD_SOUND_LABELS[sound_knob] : SYNTH_SOUND_LABELS[sound_knob];
+        view->value = song.sounds[melodic][sound_knob];
+        if (!pad_shown && (sound_knob == SOUND_KNOB_WAVE || sound_knob == SOUND_KNOB_OSC2)) {
+            view->text = sound_knob == SOUND_KNOB_WAVE ? WAVE_NAMES[view->value] : OSC2_NAMES[view->value];
             view->big = 0;
         } else format_number(view->number, view->value);
     } else if (page == PAGE_SONGS) {            /* the place: a demo's name small, a kept one's number big; on NEW the STYLE */
@@ -377,6 +433,22 @@ static void knob_view(const pass_t *pass, uint32_t knob, knob_view_t *view)
         view->number[1] = 0;
         if (!view->value) view->text = "SPACE";
         view->big = view->value != 0u;
+    } else if (page == PAGE_DRONE) {            /* LEVEL, NOTE (a word), TONE, SWELL */
+        static const char *const DRONE_LABELS[KNOB_COUNT] = {"LEVEL", "NOTE", "TONE", "SWELL"};
+        const uint32_t values[KNOB_COUNT] = {song.drone_level, song.drone_note, song.drone_tone, song.drone_swell};
+        view->label = DRONE_LABELS[knob];
+        view->value = values[knob];
+        view->big = knob != 1u;
+        if (knob == 1u) view->text = DRONE_NOTE_NAMES[view->value];
+        else format_number(view->number, view->value);
+    } else if (page == PAGE_ECHO) {             /* TIME (a word), REPEATS, WIDTH, TONE */
+        static const char *const ECHO_LABELS[KNOB_COUNT] = {"TIME", "REPEATS", "WIDTH", "TONE"};   /* (REPEATS: its FEEDBACK) */
+        const uint32_t values[KNOB_COUNT] = {song.echo_time, song.echo_feedback, song.echo_width, song.echo_tone};
+        view->label = ECHO_LABELS[knob];
+        view->value = values[knob];
+        view->big = knob != 0u;
+        if (knob == 0u) view->text = ECHO_TIME_NAMES[view->value];
+        else format_number(view->number, view->value);
     } else if (page == PAGE_MIXER) {            /* the selected track's level in the pattern (its row is orange: that says which) */
         view->label = MIXER_LABELS[knob];
         view->value = knob ? 0u : pass->pattern->mixer_levels[ui.mixer_track];

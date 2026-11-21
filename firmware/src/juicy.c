@@ -4,14 +4,14 @@
  * README.md (the panel, the screens, notes, accents, ARP, the lights, MIDI); what changed, in CHANGELOG.md.
  *
  * The files, built as one (this one includes the rest):
- *   song.c       what a song holds: tracks, patterns, notes and chords, names, sounds; checking and growing a kept one
+ *   song.c       what a song holds: tracks, patterns, notes and chords, names, sounds; checking a kept one
  *   demos.c      the demo songs (DEMO1 is also what a new FM-1 starts with)
  *   sequencer.c  the sequencer and the mixer, in the audio interrupt
  *   screen.c     drawing: colours, the header, each page's body, the knobs' places
  *   pages.c      what each page does with the knobs, the keys, SEQ and REC
  *   view.c       the lights and the screen, from the main loop's state
  *   juicy.c      the songs' places and the library in flash, the main loop: its state (ui) and its passes
- *   drums.c, synth.c, pad.c, echo.c, reverb.c, limiter.c: the sound
+ *   drums.c, synth.c, pad.c, lfo.c, drone.c, echo.c, reverb.c, limiter.c: the sound
  *
  * Rules of the road (the chip has no FPU and no libgcc): integers only, no float, no 64-bit division; the audio
  * interrupt under half of its 5.8 ms (it peaks near a quarter). What platform.c offers: docs/API.md. The chip's rules:
@@ -25,6 +25,8 @@
 #include "drums.c"
 #include "synth.c"
 #include "pad.c"
+#include "lfo.c"
+#include "drone.c"
 #include "echo.c"
 #include "reverb.c"
 #include "limiter.c"
@@ -39,18 +41,15 @@
  * (a blob each, docs/API.md). The song that plays is none of them: it is a copy, kept as the settings. */
 #define PLACES_KEPT 8u
 enum { PLACE_DEMO, PLACE_DEMO2, PLACE_DEMO3, PLACE_NEW, PLACE_FIRST_KEPT, PLACE_COUNT = PLACE_FIRST_KEPT + PLACES_KEPT };
-_Static_assert(PLACES_KEPT <= NBLOB && sizeof(song_t) <= SECTOR_MAX, "a song a blob");
+_Static_assert(PLACES_KEPT <= NBLOB && sizeof(song_t) <= BLOB_MAX, "a song a blob");
 
-static song_t place_song;                       /* a kept song on its way in: checked before it is the song */
-static song_t preview_backup;                   /* the song, put aside while a place's song or pattern plays (a preview) */
+/* the song's copies the audio never reads live in the pool (zeroed at boot, as .bss is), not in the RAM */
+static song_t place_song __attribute__((section(".pool")));      /* a kept song on its way in: checked before it is the song */
+static song_t preview_backup __attribute__((section(".pool")));  /* the song, put aside while a place's song or pattern plays (a preview) */
 
-static int place_kept_valid(uint32_t place)     /* place_song holds that place's song then */
+static int place_kept_valid(uint32_t place)     /* place_song holds that place's song then (a song of another size: none) */
 {
-    uint32_t kept = 0;                          /* (as it is now, or kept in an older size) */
-    while (kept < PATTERN_SIZES_COUNT && blob_load(place - PLACE_FIRST_KEPT, &place_song, SONG_SIZE_KEPT(PATTERN_SIZES[kept]))) kept++;
-    if (kept == PATTERN_SIZES_COUNT) return 0;
-    if (kept) song_grow(&place_song, PATTERN_SIZES[kept]);
-    return song_valid(&place_song);
+    return !blob_load(place - PLACE_FIRST_KEPT, &place_song, sizeof place_song) && song_valid(&place_song);
 }
 
 static int place_load(uint32_t place, uint32_t style)   /* 0: that place's song is the song now (NEW: in that style, STYLE_*) */
@@ -71,10 +70,7 @@ _Static_assert(sizeof library <= SLOT_MAX, "the library a slot");
 
 static void library_load(void)                  /* nothing kept, or something broken: an empty library */
 {
-    uint32_t place, track, kept = 0, valid;     /* (as it is now, or kept in an older size) */
-    while (kept < PATTERN_SIZES_COUNT && slot_load(0, &library, LIBRARY_PLACES * PATTERN_SIZES[kept])) kept++;
-    valid = kept < PATTERN_SIZES_COUNT;
-    if (valid && kept) patterns_grow(library.patterns, LIBRARY_PLACES, PATTERN_SIZES[kept]);
+    uint32_t place, track, valid = !slot_load(0, &library, sizeof library);   /* (patterns of another size: none) */
     for (place = 0; valid && place < LIBRARY_PLACES; place++)
         if (!pattern_valid(&library.patterns[place])) valid = 0;
     if (valid) return;
@@ -82,7 +78,7 @@ static void library_load(void)                  /* nothing kept, or something br
     for (place = 0; place < LIBRARY_PLACES; place++) {
         for (track = 0; track < sizeof library.patterns[place].bar_totals; track++)
             library.patterns[place].bar_totals[track] = 1;
-        mixer_levels_full(&library.patterns[place]);
+        pattern_defaults(&library.patterns[place]);
     }
 }
 
@@ -114,8 +110,10 @@ static uint32_t keyboard_first_note(uint32_t melodic, uint32_t octave)   /* the 
 /* the main loop's state, from one pass to the next (the panel, the pages, what waits to be saved, what is drawn) */
 static struct {
     uint32_t previous_keys;                     /* the keys down in the pass before */
-    uint32_t shown_track, global_shown, songs_shown, library_shown, names_shown, mixer_shown;   /* which page: a track's, JUICY, SAVE's two, JUICY's NAMES and MIXER */
+    uint32_t shown_track, global_shown, songs_shown, library_shown, names_shown, mixer_shown, drone_shown, echo_shown;   /* which page: a track's, JUICY, SAVE's two, JUICY's NAMES, MIXER, DRONE, ECHO */
     uint32_t fx_page;                           /* FX: which page of a track (DRUMS has no sound page) */
+    uint32_t lfo_shown;                         /* LFO: a melodic track's LFO page is there (over the FX page; LFO or FX again: gone) */
+    uint32_t gen_shown;                         /* ARP: ARP's GEN page is there (as the LFO page; one of the two at a time) */
     uint32_t shown_pattern, shown_bar;          /* the pattern and the bar on the screen */
     uint32_t selected_drum;                     /* DRUMS: the drum the keys edit */
     uint32_t selected_notes[MELODIC_COUNT];     /* the next note a track places */
@@ -170,7 +168,7 @@ static struct {
     uint32_t kept_chain_on, kept_shown_pattern, kept_shown_bar;   /* (meanwhile: as they were with the song) */
     uint32_t unsaved, changed_ms;               /* the song changed (since when): it goes to flash once nothing sounds */
     /* what is on the screen (+ 1, so 0 means "draw it"): the page, its header, each part of its body, the knobs */
-    uint32_t page_drawn, header_drawn, chord_name_drawn, chain_drawn, songs_drawn, library_drawn, naming_drawn, mixer_hint_drawn, sound_drawn;
+    uint32_t page_drawn, header_drawn, chord_name_drawn, chain_drawn, songs_drawn, library_drawn, naming_drawn, mixer_hint_drawn, sound_drawn, lfo_drawn, drone_drawn, echo_drawn, gen_drawn;
     uint32_t drum_row_drawn[DRUMS_PER_PAGE], drum_accents_drawn, drum_pages_drawn, mix_drawn[DRUM_COUNT];
     uint32_t roll_drawn, roll_marker_drawn, knob_drawn[KNOB_COUNT], overlay_drawn, hints_drawn;
 } ui = {
@@ -204,7 +202,8 @@ typedef struct {
     uint32_t keys, keys_pressed, buttons_pressed, buttons_released;   /* bit k: key k (0 = F3 .. 26 = G5); buttons by id */
     int32_t detents[KNOB_COUNT], presets_detents, algorithm_detents, select_detents;
     uint32_t page;                              /* PAGE_* */
-    int sound_page, mix_page, notes_page;       /* a track's other pages (FX), or its notes */
+    int sound_page, mix_page, lfo_page, gen_page, notes_page;   /* a track's other pages (FX, LFO, ARP's GEN), or its notes */
+    int osc_page;                               /* the sound page is its second, OSC (sound_page is set too) */
     int keys_edit, keys_play;                   /* what the keys do: SEL comes first, then EDIT, else they play */
     volatile pattern_t *pattern;                /* the pattern on the screen */
     uint32_t bar_total;                         /* of what the page shows: its track, or the whole pattern */
@@ -313,8 +312,8 @@ static void choose_page(pass_t *pass)
         ui.songs_shown = !ui.songs_shown && !ui.library_shown;
     }
     if (pass->buttons_pressed & (1u << BTN_HOME)) {   /* (from the songs', the library's, the NAMES or the MIXER page: home) */
-        ui.global_shown = ui.songs_shown || ui.library_shown || ui.names_shown || ui.mixer_shown || !ui.global_shown;
-        ui.songs_shown = ui.library_shown = ui.names_shown = ui.mixer_shown = 0;
+        ui.global_shown = ui.songs_shown || ui.library_shown || ui.names_shown || ui.mixer_shown || ui.drone_shown || ui.echo_shown || !ui.global_shown;
+        ui.songs_shown = ui.library_shown = ui.names_shown = ui.mixer_shown = ui.drone_shown = ui.echo_shown = 0;
     }
     if (pass->buttons_pressed & (1u << BTN_SEL)) {   /* SEL and EDIT: one at a time, the one pressed takes over */
         ui.select_on = !ui.select_on;
@@ -334,21 +333,34 @@ static void choose_page(pass_t *pass)
         }
     pass->page = ui.songs_shown ? PAGE_SONGS : ui.library_shown ? PAGE_LIBRARY : ui.global_shown ? PAGE_GLOBAL : ui.shown_track;
     if (pass->buttons_pressed & (1u << BTN_FX) && pass->page == PAGE_GLOBAL) {   /* JUICY's other pages, round: the names, the pattern's mix */
-        const uint32_t names_were_shown = ui.names_shown;
-        ui.names_shown = !ui.names_shown && !ui.mixer_shown;
+        const uint32_t names_were_shown = ui.names_shown, mixer_was_shown = ui.mixer_shown, drone_was_shown = ui.drone_shown;
+        ui.names_shown = !ui.names_shown && !ui.mixer_shown && !ui.drone_shown && !ui.echo_shown;
         ui.mixer_shown = names_were_shown;
+        ui.drone_shown = mixer_was_shown;
+        ui.echo_shown = drone_was_shown;
     }
-    if (pass->page != PAGE_GLOBAL) ui.names_shown = ui.mixer_shown = 0;
+    if (pass->page != PAGE_GLOBAL) ui.names_shown = ui.mixer_shown = ui.drone_shown = ui.echo_shown = 0;
     if (ui.names_shown) pass->page = PAGE_NAMING;
     if (ui.mixer_shown) pass->page = PAGE_MIXER;
-    if (pass->buttons_pressed & (1u << BTN_FX) && pass->page < TRACK_COUNT)   /* the notes, the sound (not DRUMS), the mix, round */
+    if (ui.drone_shown) pass->page = PAGE_DRONE;
+    if (ui.echo_shown) pass->page = PAGE_ECHO;
+    if (pass->buttons_pressed & (1u << BTN_LFO) && pass->page >= MELODIC_FIRST_PAGE && pass->page < TRACK_COUNT)   /* a melodic track's LFO page, or back */
+        ui.gen_shown = 0, ui.lfo_shown = !ui.lfo_shown;
+    if (pass->buttons_pressed & (1u << BTN_ARP) && pass->page == MELODIC_FIRST_PAGE + MELODIC_ARP)   /* ARP's GEN page, or back */
+        ui.lfo_shown = 0, ui.gen_shown = !ui.gen_shown;
+    pass->lfo_page = ui.lfo_shown && pass->page >= MELODIC_FIRST_PAGE && pass->page < TRACK_COUNT;
+    pass->gen_page = ui.gen_shown && pass->page == MELODIC_FIRST_PAGE + MELODIC_ARP;
+    if (pass->buttons_pressed & (1u << BTN_FX) && (pass->lfo_page || pass->gen_page))   /* FX on the LFO or GEN page: back to the page under it */
+        ui.lfo_shown = ui.gen_shown = 0, pass->lfo_page = pass->gen_page = 0;
+    else if (pass->buttons_pressed & (1u << BTN_FX) && pass->page < TRACK_COUNT)   /* the notes, the sound (not DRUMS), the mix, round */
         ui.fx_page = ui.fx_page == FX_PAGE_MIX ? FX_PAGE_NOTES : pass->page == PAGE_DRUMS ? FX_PAGE_MIX : ui.fx_page + 1u;
-    pass->sound_page = ui.fx_page == FX_PAGE_SOUND && pass->page > PAGE_DRUMS && pass->page < TRACK_COUNT;
-    pass->mix_page = ui.fx_page == FX_PAGE_MIX && pass->page < TRACK_COUNT;
-    pass->notes_page = pass->page >= MELODIC_FIRST_PAGE && pass->page < TRACK_COUNT && !pass->sound_page && !pass->mix_page;
+    pass->sound_page = !pass->lfo_page && !pass->gen_page && (ui.fx_page == FX_PAGE_SOUND || ui.fx_page == FX_PAGE_OSC) && pass->page > PAGE_DRUMS && pass->page < TRACK_COUNT;
+    pass->osc_page = pass->sound_page && ui.fx_page == FX_PAGE_OSC;
+    pass->mix_page = !pass->lfo_page && !pass->gen_page && ui.fx_page == FX_PAGE_MIX && pass->page < TRACK_COUNT;
+    pass->notes_page = pass->page >= MELODIC_FIRST_PAGE && pass->page < TRACK_COUNT && !pass->sound_page && !pass->mix_page && !pass->lfo_page && !pass->gen_page;
     if (!ui.edit_on || !pass->notes_page) ui.recording_on = 0;
-    pass->keys_edit = !ui.select_on && ui.edit_on && !pass->sound_page && !pass->mix_page && !ui.recording_on;   /* what the keys do: SEL comes first, then EDIT, else they play */
-    pass->keys_play = !ui.select_on && (!ui.edit_on || pass->sound_page || pass->mix_page);   /* (on a sound or mix page they always play) */
+    pass->keys_edit = !ui.select_on && ui.edit_on && !pass->sound_page && !pass->mix_page && !pass->lfo_page && !pass->gen_page && !ui.recording_on;   /* what the keys do: SEL comes first, then EDIT, else they play */
+    pass->keys_play = !ui.select_on && (!ui.edit_on || pass->sound_page || pass->mix_page || pass->lfo_page || pass->gen_page);   /* (on a sound, mix, LFO or GEN page they always play) */
     pass->algorithm_detents = fm1_enc_take(ENC_ALGORITHM);
     pass->select_detents = fm1_enc_take(ENC_SELECT);   /* (taken on every page: turns elsewhere do not pile up for DRUMS) */
     if (!pass->sound_page) ui.sound_note = SOUND_NOTE_NONE;
@@ -394,7 +406,7 @@ static void groove_end(pass_t *pass)
 /* a suggestion that plays in place of a track's notes goes, the notes are back (another page, PRESETS, EDIT off) */
 static void suggestion_end(pass_t *pass)
 {
-    if (ui.suggestion_shown != SUGGESTION_OWN && (pass->page != MELODIC_FIRST_PAGE + ui.suggestion_melodic || pass->sound_page || pass->mix_page || pass->presets_detents || !ui.edit_on)) {
+    if (ui.suggestion_shown != SUGGESTION_OWN && (pass->page != MELODIC_FIRST_PAGE + ui.suggestion_melodic || pass->sound_page || pass->mix_page || pass->lfo_page || pass->gen_page || pass->presets_detents || !ui.edit_on)) {
         track_put_back(&song.patterns[ui.suggestion_pattern], ui.suggestion_melodic, &ui.suggestion_kept);
         ui.suggestion_shown = SUGGESTION_OWN;
         ui.suggestion_asked = 0;
@@ -447,7 +459,7 @@ static void preview_follow(pass_t *pass)
 /* REC on JUICY or a track (EDIT): tapped, a copy or recording; held, clearing */
 static void rec_button(pass_t *pass)
 {
-    if (!ui.edit_on || !(pass->page == PAGE_GLOBAL || (pass->page < TRACK_COUNT && !pass->sound_page && !pass->mix_page)))
+    if (!ui.edit_on || !(pass->page == PAGE_GLOBAL || (pass->page < TRACK_COUNT && !pass->sound_page && !pass->mix_page && !pass->lfo_page && !pass->gen_page)))
         ui.rec_waits = 0;                       /* (another page, or EDIT off, while REC is down: it does nothing) */
     else if (pass->buttons_pressed & (1u << BTN_REC)) {   /* REC moves when it is let go: held, it clears */
         ui.rec_waits = 1;
@@ -572,8 +584,8 @@ static void step_keys(pass_t *pass)
  * playing, from its first note on) is one. Not while a preview, a groove or a suggestion plays (the song on the screen
  * is not the song's own then), nor while a key records */
 #define UNDO_GAP_MS 1000u
-static song_t undo_song;                        /* the song before the last change (after GLO: the change) */
-static song_t undo_before;                      /* the song as the last change left it */
+static song_t undo_song __attribute__((section(".pool")));      /* the song before the last change (after GLO: the change) */
+static song_t undo_before __attribute__((section(".pool")));    /* the song as the last change left it */
 
 static void undo_button(pass_t *pass)
 {
@@ -639,13 +651,7 @@ static void save_when_quiet(void)
 static void app_main(void)                      /* what was kept comes back, then the main loop, a pass at a time */
 {
     uint32_t place;
-    {                                           /* the song as it was kept: as it is now, or in an older size */
-        uint32_t kept = 0;
-        while (kept < PATTERN_SIZES_COUNT && settings_load((void *)&song, SONG_SIZE_KEPT(PATTERN_SIZES[kept]))) kept++;
-        if (kept == PATTERN_SIZES_COUNT) first_song();
-        else if (kept) song_grow((song_t *)&song, PATTERN_SIZES[kept]);
-    }
-    if (!song_valid(&song))
+    if (settings_load((void *)&song, sizeof song) || !song_valid(&song))   /* the song as it was kept (another size: none) */
         first_song();
     for (place = PLACE_FIRST_KEPT; place < PLACE_COUNT; place++)
         if (place_kept_valid(place)) {

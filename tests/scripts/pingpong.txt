@@ -1,0 +1,35 @@
+# The ECHO page (FX four times on JUICY): TIME, REPEATS (the feedback), WIDTH, TONE. A note on ARP comes back on the left, then on
+# the right, then on the left ... (WIDTH 100, a ping-pong), every three steps (346 ms at 130 BPM); with WIDTH 0 on both
+# sides, as the echo always was (tests/host.c says what a line can do).
+#   tests/run_host.sh tests/scripts/pingpong.txt
+# EDIT; FX four times: ECHO (1/8 DOT, REPEATS 61, WIDTH 100, TONE 30)
+10 btn 6
+100 btn 2
+150 btn 2
+200 btn 2
+250 btn 2
+400 shot
+# SEL, OP3, SEL: ARP, the keys play. C#4 (key 8) for 200 ms: the test song sends 50 of 100 into the echo
+500 btn 3
+520 keys 0x20
+540 keys 0
+560 btn 3
+1000 keys 0x100
+1200 keys 0
+# HOME: JUICY. EDIT, FX four times: ECHO. WIDTH 0, TONE 0: the echo as it was. Back on ARP, the same note again
+3000 btn 8
+3050 btn 6
+3100 btn 2
+3150 btn 2
+3200 btn 2
+3250 btn 2
+3400 enc 4 -100
+3450 enc 5 -30
+3600 shot
+3700 btn 3
+3720 keys 0x20
+3740 keys 0
+3760 btn 3
+5000 keys 0x100
+5200 keys 0
+8000 end

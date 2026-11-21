@@ -245,19 +245,19 @@ static int area_save(uint32_t at, uint32_t sectors, uint32_t magic, const void *
         return rc;
     return fl_write(at, (const uint8_t *)h, sizeof h);   /* the header last: a cut save stays invalid */
 }
-/* one sector each, up to SECTOR_MAX bytes; 0: done. A load that fails leaves p as it was (a copy first) */
-static int sector_load(uint32_t at, void *p, uint32_t n)
+/* BLOB_SECT sectors each, up to BLOB_MAX bytes; 0: done. A load that fails leaves p as it was (a copy first) */
+static int blob_area_load(uint32_t at, void *p, uint32_t n)
 {
-    static uint8_t buf[SECTOR_MAX];
-    if (n > sizeof buf || area_load(at, SECTOR_MAX, STORE_MAGIC, buf, n))
+    static uint8_t buf[BLOB_MAX] __attribute__((section(".pool")));
+    if (n > sizeof buf || area_load(at, BLOB_MAX, STORE_MAGIC, buf, n))
         return -1;
     memcpy(p, buf, n);
     return 0;
 }
-static int settings_load(void *p, uint32_t n) { return sector_load(SETTINGS_AT, p, n); }
-static int settings_save(const void *p, uint32_t n) { return area_save(SETTINGS_AT, 1u, STORE_MAGIC, p, n); }
-static int blob_load(uint32_t i, void *p, uint32_t n) { return i < NBLOB ? sector_load(BLOBS_AT + i * 0x1000u, p, n) : -1; }
-static int blob_save(uint32_t i, const void *p, uint32_t n) { return i < NBLOB ? area_save(BLOBS_AT + i * 0x1000u, 1u, STORE_MAGIC, p, n) : -1; }
+static int settings_load(void *p, uint32_t n) { return blob_area_load(SETTINGS_AT, p, n); }
+static int settings_save(const void *p, uint32_t n) { return area_save(SETTINGS_AT, BLOB_SECT, STORE_MAGIC, p, n); }
+static int blob_load(uint32_t i, void *p, uint32_t n) { return i < NBLOB ? blob_area_load(BLOBS_AT + i * BLOB_SECT * 0x1000u, p, n) : -1; }
+static int blob_save(uint32_t i, const void *p, uint32_t n) { return i < NBLOB ? area_save(BLOBS_AT + i * BLOB_SECT * 0x1000u, BLOB_SECT, STORE_MAGIC, p, n) : -1; }
 /* slot i: SLOT_SECT sectors, up to SLOT_MAX bytes. slot_load reads straight into p (no buffer that big): on -1 p holds
  * rubbish, start afresh */
 #define SLOT_MAGIC 0x544F4C53u                  /* "SLOT" */
@@ -283,8 +283,8 @@ static void smk_owner_check(void)
         return;
     fl_erase4k(SETTINGS_AT, &took);
     for (i = 0; i < NBLOB; i++) {
-        fm1_wdt_feed();                         /* (~50 ms an erase) */
-        fl_erase4k(BLOBS_AT + i * 0x1000u, &took);
+        fm1_wdt_feed();                         /* (~50 ms an erase; a blob's first sector holds its header) */
+        fl_erase4k(BLOBS_AT + i * BLOB_SECT * 0x1000u, &took);
     }
     for (i = 0; i < NSLOT; i++) {               /* (each slot's head; another firmware's samples go) */
         fm1_wdt_feed();

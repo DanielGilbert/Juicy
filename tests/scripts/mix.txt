@@ -1,7 +1,7 @@
 # The mix page (FX): the bass played by hand in the middle, panned right, at half its level; the drums' page with each
 # drum's level, the kick turned down to nothing (tests/host.c says what a line can do).
 #   tests/run_host.sh tests/scripts/mix.txt
-# HOME: to the drums. SEL, OP2, EDIT: the bass. FX twice: its sound page, its mix page
+# HOME: to the drums. SEL, OP2, EDIT: the bass. FX three times: its sound page, its OSC page, its mix page
 5 btn 8
 100 btn 3
 120 keys 0x8
@@ -9,6 +9,7 @@
 160 btn 6
 200 btn 2
 250 btn 2
+300 btn 2
 400 shot
 # the leftmost key (F1): as loud left as right
 500 keys 0x1

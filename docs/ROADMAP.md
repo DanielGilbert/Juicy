@@ -150,13 +150,108 @@ playing bar; with the chain on, only the pattern on the screen records while it 
 - [x] Show the keyboard's octave while recording. Done 2026-11-14: OCT- / OCT+ show the keys' notes in the overlay.
 - [x] New screenshots in `docs/` (they still show the old first song). Done 2026-11-14 from the host: DEMO1.
 
+## Next: hypnotic and ambient sounds
+
+Decided with Daniel (2026-11-21): Juicy gets the sounds for hypnotic, ambient electronic music in the style of Caught
+In Joy's "Magnetosphere" (YouTube CylrQLde8lQ). Measured from five 2-minute excerpts: everything on A (a pedal note,
+A minor with B♭: A Phrygian), very dark (85..97 % of the energy below 250 Hz, almost nothing above 4 kHz), on a strict
+grid (eighths or quarters at 95..110 BPM, repeating for many bars), slow swells (6..33 dB in 2 minutes) and filter
+sweeps. Juicy's grid fits; its sounds lack movement. Built for the device directly (no WAV renders first). **Old
+saves need not load** (Juicy is beta): songs, the library and user sounds of an older size start fresh.
+
+### 1. [x] Room: a song in two sectors
+
+**Built and flashed 2026-11-21, "works, nice" on the device.** RAM 51.5 -> 31.3 KB, pool 165 -> 189 KB; every host script gives what it
+gave before (`tests/regress.sh`: SAME). On the device: songs saved by 0.1 start fresh (FM-1: the song you work on
+too); the library and USER1 / USER2 stay (their slots did not move). To check there: save, power off, load.
+
+- A song is one 4 KiB sector today (4084 B, 4032 used). Settings and blobs become two sectors each (8180 B).
+- FM-1: settings and blobs move into the free part of the app's store after the slots (0xB7000..0xC9000); SMK-37:
+  settings 0x9D000, blobs 0x9F000..0xAEFFF (up to the owner tag).
+- The song's copies the audio never reads (a place on its way in, the preview's backup, undo's two) go into the pool:
+  RAM stays as it is.
+- The code that grows old sizes (song_grow, patterns_grow, PATTERN_SIZES) goes.
+
+### 2. [x] An LFO per melodic track
+
+**Built and flashed 2026-11-21, "works, nice" on the device.** Decided with Daniel: the **LFO** button opens a melodic track's LFO page (LFO
+or FX: back); RATE in time with the song only (1/4 bar .. 16 bars); the song's LFO per track, and **a pattern can have
+its own** (REC with EDIT on the LFO page; REC again: the song's). Decided on the way: TARGET CUTOFF, PITCH (DEPTH
+squared: 10 is 12 cents, 100 an octave) or LEVEL (glides as a pattern's mix does: a SQUARE does not click); SHAPE
+SINE, TRIANGLE, SAW UP, SAW DOWN, SQUARE, RANDOM, DRIFT; all LFOs at DEPTH 0 to start, RATE 4 BARS. Not part of a
+sound (USER1 / USER2, the presets): picking another sound keeps the LFO. Playing, each step puts the LFOs where it is
+(counted from PLAY); stopped, they run on at the tempo. The cutoff now moves in 1/256 of its steps (no zipper
+steps). The page shows the wave as deep as DEPTH. `lfo.c`; script `tests/scripts/lfo.txt` (the WAV: the bass on
+and off every 0.46 s at 130 BPM, the pad's filter once a bar). Song 4192 B, pattern 512 B: library patterns of 0.1
+start fresh too. RAM 31.8 KB.
+
+### 3. [x] A fuller synth
+
+**Built and flashed 2026-11-21, "sounds fine" on the device.** Decided with Daniel: a **second sound page, OSC** (FX: notes, sound, OSC, mix);
+the pad gets SUB and GLIDE too; new named sounds. Decided on the way: a sound is eight knobs now (`SOUND_KNOBS`, a page
+shows four), so ALGORITHM, SEQ / REC (USER1 / USER2) and the `*` work on both pages. SUB: a square an octave down
+(the pad's: under the chord's root, 100 about as loud as two of its notes); OSC2: the first's wave (2 SAWS: one saw)
+DETUNE (13 cents), OCT -1, FIFTH (exactly 3/2), OCT +1, and its LEVEL; the synth's three together as loud (RMS) as
+the first alone. GLIDE: 5 ms .. 1.5 s (time constant), only when the note before still sounds; the pad's notes glide
+each to its place in the next chord (a note the chord before did not have: at once). New sounds MOOG (bass: saw, sub
+60, detuned saw 50, glide 12), SEQ (arp: saw and a fifth), DEEP (pad: sub 70, slow, glide 30), MONO (lead: two saws,
+glide 30). With everything off, every sound is byte-identical to before (`tests/regress.sh`). Script
+`tests/scripts/osc.txt` (the WAV: the bass glides F1 to F2 in ~150 ms, the pad's sub on F1 under F2). The scripts that
+went to a mix page with FX twice go three times now. Song 4208 B: songs of the build before start fresh (the library
+stays), as do USER1 / USER2.
+
+### 4. [x] A drone
+
+**Built and flashed 2026-11-21; louder after "quite subtle", then "that's better".** Decided with Daniel: a **DRONE page on JUICY** (FX: NAMES, MIXER, DRONE,
+JUICY), knobs LEVEL, NOTE, TONE, SWELL; NOTE picks the key's root (KEY OFF: A) or the pad's chord's root, each in
+octave 1 .. 3 (KEY 1..3, CHORD 1..3; CHORD before the first chord: the key's); **a sixth row in the pattern's MIXER**
+(key 6 mutes it there); **plays only while the song plays**. Decided on the way: two saws 3.4 cents apart each way and a
+sine an octave down, through a soft filter (TONE 100: CUTOFF 90); fades in and out in about 2 s (it fades out in the
+last pattern's mix, so a muted one stays silent); glides ~150 ms between roots; SWELL is the LFOs' DRIFT over 8 bars on
+its level (100: down to nothing) and filter (+-15 steps); into the reverb at 60 %, no echo, in the middle; LEVEL 0 to
+start (no drone), NOTE KEY 2, TONE 50, SWELL 50. After the first flash (Daniel: "quite subtle"): it was 12 dB
+under a pad chord to the ear (A-weighted; its energy sat at 55 and 110 Hz under a filter at 130 Hz); TONE's range went
+up (100: CUTOFF 90, was 70), TONE 50 to start (was 30), DRONE_GAIN 45000 (was 20000): now -1.3 dB, breathing. MIXER rows 19 px to fit six. `drone.c`; script
+`tests/scripts/drone.txt` (the WAV: in over 2 s, breathing, out after STOP, silent when muted, A2 with A1 under it).
+Song 4212 B; the pattern stays 512 B (the row took a padding byte) but its fields after the mix moved, so the
+store's magic went from "JUCY" to "JUC2" (store.h: counted up for such changes): everything kept by older builds
+starts fresh, USER1 / USER2 too.
+
+### 5. [x] Stereo echo
+
+**Built and flashed 2026-11-21, fine for now on the device** (Daniel, with DEMO1's ARP alone: "very subtle", he likes
+that; maybe rethink the ranges later: the tracks' ECHO sends, how loud a repeat on one side is). Decided with Daniel: an **ECHO page on JUICY** (FX: NAMES, MIXER, DRONE, ECHO,
+JUICY) with TIME, FEEDBACK (shown as REPEATS: FEEDBACK did not fit its place), WIDTH, TONE; songs start with a ping-pong
+(WIDTH 100) a little darker (TONE 30), so the demos' echo changed too. Decided on the way: two lines of 1 s (the pool's
+room: 300 of 344 KB now), each feeding the other (the left gets the sends); WIDTH 0 is both lines in both ears, which
+is the old echo (checked: at WIDTH 0, TONE 0 the WAV differs from the old one by 4 of 32767 at most, rounding); TIME
+1/16, 1/8, 1/8 DOT (as it was), 1/4, 1/4 DOT (no 1/2: 2 s at 60 BPM do not fit; longer than 1 s is cut to 1 s); REPEATS
+0..100 is a feedback of 0..230/256 (61: the old 140); TONE a one-pole low-pass in the loop, 16 kHz to 600 Hz; the
+reverb gets both sides' echo (half each). Script `tests/scripts/pingpong.txt` (the WAV: repeats 2..5 right, left,
+right, left; WIDTH 0 both sides). Song 4216 B.
+
+### 6. [ ] A generative sequence
+
+**Built and flashed 2026-11-21, waiting for Daniel's ear.** Decided with Daniel: on **ARP**, as **MODE GEN** (after TONES), set on a **GEN
+page behind the ARP button** (ARP or FX: back; REC with EDIT: MODE GEN / UP 1); **its own rhythm** (DENSITY) instead of
+the placed hits; NOTES **CHORD or SCALE** (one knob as the drone's: CHORD 1..3, SCALE 1..3 = octaves); **per pattern**.
+Decided on the way: a loop of 16 random 16-bit values, LENGTH 1..16 of them, counted from PLAY (a loop of 5 or 7
+drifts against the bar); each time a step comes round, CHANGE % is the chance of a new value; the low byte over
+DENSITY is a rest (so DENSITY takes away and gives back the same notes), the high byte the note: CHORD as MODE UP over
+the octaves (no chord: silent), SCALE the key's (KEY OFF: A minor) from its root at C3 or above; a GEN note lasts its
+step, no accents. The loop lives in the ISR (not saved: a new one at each power-on); the page draws it, the step that
+plays orange. Starting values: CHANGE 10, CHORD 2, DENSITY 70, LENGTH 16 (`pattern_defaults`). Script
+`tests/scripts/gen.txt` (the WAV: CHANGE 0 and LENGTH 7 repeat every 7 steps, CHANGE 100 a new note each step, all in
+A minor; a rest can carry the echo of the note three steps before). Pattern 516 B, song 4248 B: songs and the library
+start fresh.
+
 ## Room and rules
 
-- **Storage:** a song is 4032 of 4084 B (about 50 B free; each pattern's mix took 48 B on 2026-11-15); a pattern is
-  494 B; the library holds 16 patterns in a 16 KB slot. Tables (grooves, progressions) cost flash, not storage.
+- **Storage:** a song is 4248 of 8180 B (two sectors since 2026-11-21, about 4 KB free); a pattern is
+  516 B; the library holds 16 patterns in a 16 KB slot. Tables (grooves, progressions) cost flash, not storage.
 - **Audio:** the audio interrupt peaks at 24 % of its 5.8 ms (measured 2026-11-13); [RULES.md](RULES.md) asks for
   under 50 %.
-- **Free controls:** ALGORITHM on JUICY, DRUMS, PAD and LEAD (step 5 takes it on BASS and ARP), the ENV, LFO and ARP buttons (step 4 takes GLO), JUICY's KNOB4 (step 1
+- **Free controls:** ALGORITHM on JUICY, DRUMS, PAD and LEAD (step 5 takes it on BASS and ARP), the ENV and ARP buttons (step 4 takes GLO, the LFO page LFO), JUICY's KNOB4 (step 1
   takes it), the upper keys outside OP1 .. OP5 and the mute keys.
 - **Where code goes:** a page's knobs and keys in `pages.c`, what it shows in `view.c`, the data in `song.c`, the
   demo songs in `demos.c` (see the file map at the top of `firmware/src/juicy.c`).

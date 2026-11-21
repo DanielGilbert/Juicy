@@ -16,9 +16,11 @@
 1250 keys 0
 1300 enc 2 -1
 1500 shot
-# FX: the MIXER page, FX again: JUICY, ACID B
+# FX: the MIXER page, FX again: DRONE, again: ECHO, and again: JUICY, ACID B
 1600 btn 2
 1700 btn 2
+1750 btn 2
+1775 btn 2
 1800 shot
 # SAVE: the songs' page, place 1. REC: saved there; its name shows
 1900 btn 9
